@@ -9,6 +9,8 @@
 #include <stdlib.h>
 #include <mcl/fp.hpp>
 #include <mcl/ecparam.hpp>
+#include <mcl/low_func.hpp>
+#include <low_func_gpu.h>
 
 //#define MCL_EC_USE_AFFINE
 
@@ -307,6 +309,76 @@ public:
 		y.clear();
 	}
 #ifndef MCL_EC_USE_AFFINE
+	static inline void gpu_dblNoVerifyInfJacobi(EcT& R, const EcT& P)
+	{
+		Fp S, M, t, y2;
+		Fp::gpu_sqrC(y2, P.y);
+		//Fp::mul(S, P.x, y2);
+		Fp::gpu_mulC(S, P.x, y2);
+		const bool isPzOne = P.z.isOne();
+		//S += S;
+        //Fp::mul(S, S, S);
+        Fp::gpu_mulC(S, S, S);
+		//S += S;
+        Fp::gpu_addC(S, S, S);
+		//Fp::sqr(M, P.x);
+		Fp::gpu_sqrC(M, P.x);
+		switch (specialA_) {
+		case zero:
+			Fp::gpu_addC(t, M, M);
+			//M += t;
+            Fp::gpu_addC(M, M, t);
+			break;
+		case minus3:
+			if (isPzOne) {
+				//M -= P.z;
+                Fp::gpu_subC(M, M, P.z);
+			} else {
+				//Fp::sqr(t, P.z);
+				Fp::gpu_sqrC(t, P.z);
+				//Fp::sqr(t, t);
+				Fp::gpu_sqrC(t, t);
+				//M -= t;
+                Fp::gpu_subC(M, M, t);
+			}
+			Fp::gpu_addC(t, M, M);
+			//M += t;
+            Fp::gpu_addC(M, M, t);
+			break;
+		case generic:
+		default:
+			if (isPzOne) {
+				t = a_;
+			} else {
+				//Fp::sqr(t, P.z);
+				//Fp::sqr(t, t);
+				Fp::gpu_sqrC(t, P.z);
+				Fp::gpu_sqrC(t, t);
+				//t *= a_;
+                Fp::gpu_mulC(t, t, a_);
+			}
+			t += M;
+			M += M;
+			M += t;
+			break;
+		}
+		Fp::sqr(R.x, M);
+		R.x -= S;
+		R.x -= S;
+		if (isPzOne) {
+			R.z = P.y;
+		} else {
+			Fp::mul(R.z, P.y, P.z);
+		}
+		R.z += R.z;
+		Fp::sqr(y2, y2);
+		y2 += y2;
+		y2 += y2;
+		y2 += y2;
+		Fp::sub(R.y, S, R.x);
+		R.y *= M;
+		R.y -= y2;
+	}
 	static inline void dblNoVerifyInfJacobi(EcT& R, const EcT& P)
 	{
 		Fp S, M, t, y2;
@@ -423,6 +495,36 @@ public:
 		R.y -= w;
 	}
 #endif
+	static inline void gpu_dblNoVerifyInf(EcT& R, const EcT& P)
+	{
+#ifdef MCL_EC_USE_AFFINE
+		Fp t, s;
+		Fp::sqr(t, P.x);
+		Fp::gpu_addC(s, t, t);
+		t += s;
+		t += a_;
+		Fp::add(s, P.y, P.y);
+		t /= s;
+		Fp::sqr(s, t);
+		s -= P.x;
+		Fp x3;
+		Fp::sub(x3, s, P.x);
+		Fp::sub(s, P.x, x3);
+		s *= t;
+		Fp::sub(R.y, s, P.y);
+		R.x = x3;
+		R.inf_ = false;
+#else
+		switch (mode_) {
+		case ec::Jacobi:
+			gpu_dblNoVerifyInfJacobi(R, P);
+			break;
+		case ec::Proj:
+			dblNoVerifyInfProj(R, P);
+			break;
+		}
+#endif
+	}
 	static inline void dblNoVerifyInf(EcT& R, const EcT& P)
 	{
 #ifdef MCL_EC_USE_AFFINE
@@ -462,6 +564,102 @@ public:
 		dblNoVerifyInf(R, P);
 	}
 #ifndef MCL_EC_USE_AFFINE
+	static inline void gpu_addJacobi(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)
+	{
+		Fp r, U1, S1, H, H3;
+		if (isPzOne) {
+			// r = 1;
+		} else {
+			//Fp::sqr(r, P.z);
+			Fp::gpu_sqrC(r, P.z);
+		}
+		if (isQzOne) {
+			U1 = P.x;
+			if (isPzOne) {
+				H = Q.x;
+			} else {
+				Fp::gpu_mulC(H, Q.x, r);
+			}
+			//H -= U1;
+            Fp::gpu_subC(H, H, U1);
+			S1 = P.y;
+		} else {
+			//Fp::sqr(S1, Q.z);
+			Fp::gpu_sqrC(S1, Q.z);
+			//Fp::mul(U1, P.x, S1);
+			Fp::gpu_mulC(U1, P.x, S1);
+			if (isPzOne) {
+				H = Q.x;
+			} else {
+				//Fp::mul(H, Q.x, r);
+				Fp::gpu_mulC(H, Q.x, r);
+			}
+			//H -= U1;
+            Fp::gpu_subC(H, H, U1);
+			//S1 *= Q.z;
+			//S1 *= P.y;
+            Fp::gpu_mulC(S1, S1, Q.z);
+            Fp::gpu_mulC(S1, S1, P.y);
+		}
+		if (isPzOne) {
+			r = Q.y;
+		} else {
+			//r *= P.z;
+			//r *= Q.y;
+            Fp::gpu_mulC(r, r, P.z);
+            Fp::gpu_mulC(r, r, Q.y);
+		}
+		//r -= S1;
+        Fp::gpu_subC(r, r, S1);
+		if (H.isZero()) {
+			if (r.isZero()) {
+				gpu_dblNoVerifyInf(R, P);
+			} else {
+				R.clear();
+			}
+			return;
+		}
+		if (isPzOne) {
+			if (isQzOne) {
+				R.z = H;
+			} else {
+				//Fp::mul(R.z, H, Q.z);
+				Fp::gpu_mulC(R.z, H, Q.z);
+			}
+		} else {
+			if (isQzOne) {
+				//Fp::mul(R.z, P.z, H);
+				Fp::gpu_mulC(R.z, P.z, H);
+			} else {
+				//Fp::mul(R.z, P.z, Q.z);
+				Fp::gpu_mulC(R.z, P.z, Q.z);
+				//R.z *= H;
+                Fp::gpu_mulC(R.z, R.z, H);
+			}
+		}
+		Fp::gpu_sqrC(H3, H); // H^2
+        //mcl::fp::GpuSqrMont<4, false, mcl::fp::Gtag>::f(H3.getUnit(), H.getUnit(), Fp::getOp().p);
+		//Fp::sqr(R.y, r); // r^2
+        Fp::gpu_sqrC(R.y, r);
+		//U1 *= H3; // U1 H^2
+        Fp::gpu_mulC(U1, U1, H3);
+		//H3 *= H; // H^3
+        Fp::gpu_mulC(H3, H3, H);
+		//R.y -= U1;
+        Fp::gpu_subC(R.y, R.y, U1);
+		//R.y -= U1;
+		Fp::gpu_subC(R.y, R.y, U1);
+		//Fp::sub(R.x, R.y, H3);
+		Fp::gpu_subC(R.x, R.y, H3);
+		//U1 -= R.x;
+        Fp::gpu_subC(U1, U1, R.x);
+		//U1 *= r;
+        Fp::gpu_mulC(U1, U1, r);
+		//H3 *= S1;
+        Fp::gpu_mulC(H3, H3, S1);
+		//Fp::sub(R.y, U1, H3);
+        Fp::gpu_subC(R.y, U1, H3);
+	}
 	static inline void addJacobi(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)
 	{
 		Fp r, U1, S1, H, H3;
@@ -629,6 +827,77 @@ public:
 			break;
 		}
 #endif
+	}
+
+	static inline void gpu_add(EcT& R, const EcT& P, const EcT& Q) {
+        if(true){
+            gpu::mcl_bn128_g1 d_R, d_P, d_Q, h_R;
+            d_R.init(1);
+            h_R.init_host(1);
+            d_P.init(1);
+            d_Q.init(1);
+            gpu::Fp_model d_one, d_p, d_a;
+            d_one.init(1);
+            d_p.init(1);
+            d_a.init(1);
+            gpu::copy_cpu_to_gpu(d_one.mont_repr_data, P.z.one().getUnit(), 32);
+            gpu::copy_cpu_to_gpu(d_p.mont_repr_data, Fp::getOp().p, 32);
+            gpu::copy_cpu_to_gpu(d_a.mont_repr_data, a_.getUnit(), 32);
+            auto copy_to_d = [](gpu::mcl_bn128_g1& dst, const EcT& src){
+                gpu::copy_cpu_to_gpu(dst.x.mont_repr_data, src.x.getUnit(), 32);
+                gpu::copy_cpu_to_gpu(dst.y.mont_repr_data, src.y.getUnit(), 32);
+                gpu::copy_cpu_to_gpu(dst.z.mont_repr_data, src.z.getUnit(), 32);
+            };
+            auto copy_to_h = [](EcT& dst, gpu::mcl_bn128_g1& src){
+                dst.x = *reinterpret_cast<const Fp*>(src.x.mont_repr_data);
+                dst.y = *reinterpret_cast<const Fp*>(src.y.mont_repr_data);
+                dst.z = *reinterpret_cast<const Fp*>(src.z.mont_repr_data);
+            };
+            copy_to_d(d_P, P);
+            copy_to_d(d_Q, Q);
+            gpu::gpu_mcl_ect_add(d_R, d_P, d_Q, d_one, d_p, d_a, specialA_, mode_, Fp::getOp().rp); 
+            d_R.copy_to_cpu(h_R);
+            //EcT R2;
+            copy_to_h(R, h_R);
+            //static int count = 0;
+            //if(R2.x != R.x){
+            //    printf("incorrect x... %d\n", count);
+            //}
+            //if(R2.y != R.y){
+            //    printf("incorrect y... %d\n", count);
+            //}
+            //if(R2.z != R.z){
+            //    printf("incorrect z... %d\n", count);
+            //}
+            //count += 1;
+            d_R.release();
+            d_Q.release();
+            d_P.release();
+            d_one.release();
+            d_p.release();
+            d_a.release();
+            return;
+        }
+
+		if (P.isZero()) { R = Q; return; }
+		if (Q.isZero()) { R = P; return; }
+		if (&P == &Q) {
+			gpu_dblNoVerifyInf(R, P);
+			return;
+		}
+		bool isPzOne = P.z.isOne();
+		bool isQzOne = Q.z.isOne();
+		switch (mode_) {
+		case ec::Jacobi:
+			//addJacobi(R, P, Q, isPzOne, isQzOne);
+			gpu_addJacobi(R, P, Q, isPzOne, isQzOne);
+			break;
+		case ec::Proj:
+			addProj(R, P, Q, isPzOne, isQzOne);
+			break;
+		}
+
+
 	}
 	static inline void sub(EcT& R, const EcT& P, const EcT& Q)
 	{

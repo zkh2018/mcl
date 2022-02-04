@@ -204,13 +204,14 @@ struct Test {
 		Ec Q;
 		Ec R;
 		R.clear();
-		for (int i = 0; i < 100; i++) {
+		for (int i = 0; i < 1; i++) {
 			Q = P;
-			Ec::mul(Q, Q, i);
-			CYBOZU_TEST_EQUAL(Q, R);
+			//Ec::mul(Q, Q, i);
+            Ec::gpu_add(R, P, Q);
+			//CYBOZU_TEST_EQUAL(Q, R);
 			Q = P;
 			if (Ec::mulSmallInt(Q, Q, i, false)) {
-				CYBOZU_TEST_EQUAL(Q, R);
+				//CYBOZU_TEST_EQUAL(Q, R);
 			}
 			R += P;
 		}
@@ -515,17 +516,17 @@ mul 499.00usec
 */
 	void run() const
 	{
-		cstr();
-		ope();
+		//cstr();
+		//ope();
 		mul();
-		aliasAddDbl();
-		neg_mul();
-		mul_fp();
-		squareRoot();
-		str();
-		ioMode();
-		mulCT();
-		compare();
+		//aliasAddDbl();
+		//neg_mul();
+		//mul_fp();
+		//squareRoot();
+		//str();
+		//ioMode();
+		//mulCT();
+		//compare();
 	}
 private:
 	Test(const Test&);
@@ -578,24 +579,27 @@ void mulVec(const mcl::EcParam& para)
 
 void test_sub_sub(const mcl::EcParam& para, mcl::fp::Mode fpMode)
 {
-	puts("Proj");
-	Test(para, fpMode, mcl::ec::Proj).run();
+	//puts("Proj");
+	//Test(para, fpMode, mcl::ec::Proj).run();
 	puts("Jacobi");
 	Test(para, fpMode, mcl::ec::Jacobi).run();
 }
 
 void test_sub(const mcl::EcParam *para, size_t paraNum)
 {
-	for (size_t i = 0; i < paraNum; i++) {
+	//for (size_t i = 0; i < paraNum; i++) {
+	for (size_t i = 0; i < 1; i++) {
 		puts(para[i].name);
 		test_sub_sub(para[i], mcl::fp::FP_GMP);
 #ifdef MCL_USE_LLVM
-		test_sub_sub(para[i], mcl::fp::FP_LLVM);
-		test_sub_sub(para[i], mcl::fp::FP_LLVM_MONT);
+        //printf("use llvm..\n");
+		//test_sub_sub(para[i], mcl::fp::FP_LLVM);
+		//test_sub_sub(para[i], mcl::fp::FP_LLVM_MONT);
 #endif
 #ifdef MCL_USE_XBYAK
-		test_sub_sub(para[i], mcl::fp::FP_XBYAK);
-		mulVec(para[i]);
+        //printf("use xbyak..\n");
+		//test_sub_sub(para[i], mcl::fp::FP_XBYAK);
+		//mulVec(para[i]);
 #endif
 	}
 }
@@ -614,6 +618,7 @@ CYBOZU_TEST_AUTO(all)
 		test_sub(para3, CYBOZU_NUM_OF_ARRAY(para3));
 	}
 
+    return;
 	if (g_partial & (1 << 4)) {
 		const struct mcl::EcParam para4[] = {
 			mcl::ecparam::secp224k1,

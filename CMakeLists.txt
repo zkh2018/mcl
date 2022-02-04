@@ -1,6 +1,13 @@
 cmake_minimum_required (VERSION 3.0)
 project(mcl CXX ASM)
 set(SRCS src/fp.cpp)
+set(
+    DEPENDS_DIR_CGBN
+    "../CGBN/"
+    CACHE
+    STRING
+    "the cuda implementation of alt_bn128"
+)
 
 option(
 	MCL_MAX_BIT_SIZE
@@ -64,6 +71,7 @@ if(USE_LLVM)
 		COMMAND ${CMAKE_CXX_COMPILER} -c -o base64.o base64.ll -O3 -fPIC
 	)
 endif()
+
 
 if(MSVC)
 	set(CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS} /MT /W4 /Oy /Ox /EHsc /GS- /Zi /DNDEBUG /DNOMINMAX")
@@ -164,6 +172,16 @@ else()
 	add_library(mcl SHARED ${SRCS})
 	add_library(mcl_st STATIC ${SRCS})
 endif()
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -g")
+
+include_directories(/usr/local/cuda/include)
+include_directories(../CGBN/)
+include_directories(../CGBN/include)
+target_include_directories(mcl PUBLIC ${DEPENDS_DIR_CGBN} "${DEPENDS_DIR_CGBN}/include")
+link_directories(${DEPENDS_DIR_CGBN})
+target_link_libraries(mcl cgbn_math)
+#add_subdirectory("${DEPENDS_DIR_CGBN}")
+
 target_link_libraries(mcl ${EXT_LIBS})
 target_link_libraries(mcl_st ${EXT_LIBS})
 set_target_properties(mcl_st PROPERTIES OUTPUT_NAME mcl)

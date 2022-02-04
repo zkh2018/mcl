@@ -9,6 +9,8 @@
 #include <mcl/op.hpp>
 #include <mcl/util.hpp>
 #include <cybozu/bit_operation.hpp>
+#include <cgbn_math.h>
+#include <low_func_gpu.h>
 
 #ifdef _MSC_VER
 	#pragma warning(push)
@@ -214,6 +216,7 @@ struct MulPre {
 	{
 #if 1
 		if (N >= EnableKaratsuba<Tag>::minMulN && (N % 2) == 0) {
+            printf("call karatsuba...\n");
 			karatsuba(z, x, y);
 			return;
 		}
@@ -454,6 +457,50 @@ struct Add {
 template<size_t N, bool isFullBit, class Tag>
 const void4u Add<N, isFullBit, Tag>::f = Add<N, isFullBit, Tag>::func;
 
+template<size_t N, bool isFullBit, class Tag = Gtag>
+struct GpuAdd {
+	static inline void func(Unit *z, const Unit *x, const Unit *y, const Unit *p)
+	{
+		if (isFullBit) {
+			if (AddPre<N, Tag>::f(z, x, y)) {
+				SubPre<N, Tag>::f(z, z, p);
+				return;
+			}
+			Unit tmp[N];
+			if (SubPre<N, Tag>::f(tmp, z, p) == 0) {
+				copyC<N>(z, tmp);
+			}
+		} else {
+            printf("call gpu add ...\n");
+			//AddPre<N, Tag>::f(z, x, y);
+			//Unit a = z[N - 1];
+			//Unit b = p[N - 1];
+			//if (a < b) return;
+			//if (a > b) {
+			//	SubPre<N, Tag>::f(z, z, p);
+			//	return;
+			//}
+			///* the top of z and p are same */
+			//SubIfPossible<N, Tag>::f(z, p);
+            gpu::gpu_meta d_x, d_y, d_z, d_p;
+            d_x.resize(32);
+            d_y.resize(32);
+            d_z.resize(32);
+            d_p.resize(32);
+            gpu::copy_cpu_to_gpu(d_x.ptr, x, N * sizeof(Unit)); 
+            gpu::copy_cpu_to_gpu(d_y.ptr, y, N * sizeof(Unit)); 
+            gpu::copy_cpu_to_gpu(d_z.ptr, z, N * sizeof(Unit)); 
+            gpu::copy_cpu_to_gpu(d_p.ptr, p, N * sizeof(Unit)); 
+            gpu::gpu_mcl_add((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr);
+            gpu::copy_gpu_to_cpu(z, d_z.ptr, N * sizeof(Unit));
+		}
+	}
+	static const void4u f;
+};
+
+template<size_t N, bool isFullBit, class Tag>
+const void4u GpuAdd<N, isFullBit, Tag>::f = GpuAdd<N, isFullBit, Tag>::func;
+
 // z[N] <- (x[N] - y[N]) % p[N]
 template<size_t N, bool isFullBit, class Tag = Gtag>
 struct Sub {
@@ -468,6 +515,35 @@ struct Sub {
 
 template<size_t N, bool isFullBit, class Tag>
 const void4u Sub<N, isFullBit, Tag>::f = Sub<N, isFullBit, Tag>::func;
+
+template<size_t N, bool isFullBit, class Tag = Gtag>
+struct GpuSub {
+	static inline void func(Unit *z, const Unit *x, const Unit *y, const Unit *p)
+	{
+		//if (SubPre<N, Tag>::f(z, x, y)) {
+		//	AddPre<N, Tag>::f(z, z, p);
+		//}
+        gpu::gpu_meta d_x, d_y, d_z, d_p;
+        d_x.resize(32);
+        d_y.resize(32);
+        d_z.resize(32);
+        d_p.resize(32);
+        gpu::copy_cpu_to_gpu(d_x.ptr, x, 32); 
+        gpu::copy_cpu_to_gpu(d_y.ptr, y, 32); 
+        gpu::copy_cpu_to_gpu(d_z.ptr, z, 32); 
+        gpu::copy_cpu_to_gpu(d_p.ptr, p, 32); 
+        gpu::gpu_mcl_sub((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr);
+        gpu::copy_gpu_to_cpu(z, d_z.ptr, 32);
+        d_x.release();
+        d_y.release();
+        d_z.release();
+        d_p.release();
+	}
+	static const void4u f;
+};
+
+template<size_t N, bool isFullBit, class Tag>
+const void4u GpuSub<N, isFullBit, Tag>::f = GpuSub<N, isFullBit, Tag>::func;
 
 //	z[N * 2] <- (x[N * 2] + y[N * 2]) mod p[N] << (N * UnitBitSize)
 template<size_t N, class Tag = Gtag>
@@ -559,9 +635,11 @@ struct Mont {
 		Unit xy[N * 2];
 		MulPre<N, Tag>::f(xy, x, y);
 		MontRed<N, Tag>::f(z, xy, p);
+        printf("mcl max bit size = 1024...\n");
 #else
 		const Unit rp = p[-1];
 		if (isFullBit) {
+            printf("Mont isfull bit = true..\n");
 			Unit buf[N * 2 + 2];
 			Unit *c = buf;
 			MulUnitPre<N, Tag>::f(c, x, y[0]); // x * y[0]
@@ -606,18 +684,27 @@ struct Mont {
 			Unit q = c[0] * rp;
 			Unit t[N + 1];
 			MulUnitPre<N, Tag>::f(t, p, q); // p * q
-			carry = AddPre<N + 1, Tag>::f(c, c, t);
+			//carry = AddPre<N + 1, Tag>::f(c, c, t);
+			carry = AddPre<N, Tag>::f(c, c, t);
+            c[N] += t[N] + carry;
+            carry = 0;
 			assert(carry == 0);
 			c++;
 			c[N] = 0;
 			for (size_t i = 1; i < N; i++) {
 				c[N + 1] = 0;
 				MulUnitPre<N, Tag>::f(t, x, y[i]);
-				carry = AddPre<N + 1, Tag>::f(c, c, t);
+				//carry = AddPre<N + 1, Tag>::f(c, c, t);
+				carry = AddPre<N, Tag>::f(c, c, t);
+                c[N] += t[N] + carry;
+                carry = 0;
 				assert(carry == 0);
 				q = c[0] * rp;
 				MulUnitPre<N, Tag>::f(t, p, q);
-				carry = AddPre<N + 1, Tag>::f(c, c, t);
+				//carry = AddPre<N + 1, Tag>::f(c, c, t);
+				carry = AddPre<N, Tag>::f(c, c, t);
+                c[N] += t[N] + carry;
+                carry = 0;
 				assert(carry == 0);
 				c++;
 			}
@@ -633,6 +720,121 @@ struct Mont {
 
 template<size_t N, bool isFullBit, class Tag>
 const void4u Mont<N, isFullBit, Tag>::f = Mont<N, isFullBit, Tag>::func;
+
+template<size_t N, bool isFullBit, class Tag = Gtag>
+struct GpuMont {
+	static inline void func(Unit *z, const Unit *x, const Unit *y, const Unit *p)
+	{
+        static bool first = true;
+        static Unit tp[N+1];
+        if(first){
+            for(int i = -1; i < N; i++){
+                tp[i] = p[i];
+            }
+            first = false;
+        }else{
+            for(int i = -1; i < N; i++){
+                if(tp[i] != p[i]){
+                    printf("different p...\n");
+                }
+            }
+        }
+
+		const Unit rp = p[-1];
+        if(false){
+            Unit carry;
+            (void)carry;
+            Unit buf[N * 2 + 1];
+            Unit buf2[N * 2 + 1];
+            Unit *c = buf;
+            MulUnitPre<N, Tag>::f(c, x, y[0]); // x * y[0]
+            Unit q = c[0] * rp;
+            Unit t[N + 1];
+            Unit t2[N + 1];
+            MulUnitPre<N, Tag>::f(t, p, q); // p * q
+            //carry = AddPre<N + 1, Tag>::f(c, c, t);
+            carry = AddPre<N, Tag>::f(c, c, t);
+            c[N] += t[N] + carry;
+            carry = 0;
+            assert(carry == 0);
+            c++;
+            c[N] = 0;
+            if(true){
+                for (size_t i = 1; i < 4; i++) {
+                    c[N + 1] = 0;
+                    MulUnitPre<N, Tag>::f(t, x, y[i]);
+                    carry = AddPre<N, Tag>::f(c, c, t);
+                    c[N] += t[N] + carry;
+                    carry = 0;
+                    assert(carry == 0);
+                    q = c[0] * rp;
+                    MulUnitPre<N, Tag>::f(t, p, q);
+                    carry = AddPre<N, Tag>::f(c, c, t);
+                    c[N] += t[N] + carry;
+                    carry = 0;
+                    assert(carry == 0);
+                    c++;
+                }
+                if(false){
+                    assert(c[N] == 0);
+                    if (SubPre<N, Tag>::f(z, c, p)) {
+                        memcpy(z, c, N * sizeof(Unit));
+                    }
+                }
+            }
+        }
+
+        if(true){
+            gpu::gpu_meta d_x, d_y, d_z, d_p, d_buf, d_t;
+            d_x.resize(32);
+            d_y.resize(32);
+            d_z.resize(32);
+            d_p.resize(32+8);
+            //d_buf.resize(32*2+8);
+            //d_t.resize(32+8);
+            gpu::copy_cpu_to_gpu(d_x.ptr, x, 32); 
+            gpu::copy_cpu_to_gpu(d_y.ptr, y, 32); 
+            //gpu::copy_cpu_to_gpu(d_p.ptr, &rp, 8); 
+            gpu::copy_cpu_to_gpu(d_p.ptr, p, 32); 
+            //gpu::gpu_set_zero(d_buf.ptr, 32*2+8);
+            //gpu::gpu_set_zero(d_t.ptr, 32+8);
+            //gpu::gpu_mcl_mul((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr, (uint32_t*)d_buf.ptr, (uint32_t*)d_t.ptr);
+            gpu::gpu_mcl_mul((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr, rp);
+            //Unit tz[N];
+            gpu::copy_gpu_to_cpu(z, d_z.ptr, 32);
+            //gpu::copy_gpu_to_cpu(buf2, d_buf.ptr, 32*2+8);
+            //gpu::copy_gpu_to_cpu(t2, d_t.ptr, 32+8);
+            //for(int i = 0; i < N+1; i++){
+            //    if(t[i] != t2[i]){
+            //        printf("compare t failed %d...\n", i);
+            //        return;
+            //    }
+            //}
+            //for(int i = 0; i < 5; i++){
+            //    if(buf[i] != buf2[i]){
+            //        printf("compare buf failed %d...\n", i);
+            //        return;
+            //    }
+            //}
+            //for(int i = 0; i < N; i++){
+            //    if(z[i] != tz[i]){
+            //        printf("compare z failed %d...\n", i);
+            //        return;
+            //    }
+            //}
+            d_x.release();
+            d_y.release();
+            d_z.release();
+            d_p.release();
+            //d_buf.release();
+            //d_t.release();
+        }
+	}
+	static const void4u f;
+};
+
+template<size_t N, bool isFullBit, class Tag>
+const void4u GpuMont<N, isFullBit, Tag>::f = GpuMont<N, isFullBit, Tag>::func;
 
 // z[N] <- Montgomery(x[N], x[N], p[N])
 template<size_t N, bool isFullBit, class Tag = Gtag>
@@ -652,6 +854,24 @@ struct SqrMont {
 template<size_t N, bool isFullBit, class Tag>
 const void3u SqrMont<N, isFullBit, Tag>::f = SqrMont<N, isFullBit, Tag>::func;
 
+template<size_t N, bool isFullBit, class Tag = Gtag>
+struct GpuSqrMont {
+	static inline void func(Unit *y, const Unit *x, const Unit *p)
+	{
+#if MCL_MAX_BIT_SIZE == 1024 || MCL_SIZEOF_UNIT == 4 // check speed
+		Unit xx[N * 2];
+		SqrPre<N, Tag>::f(xx, x);
+		MontRed<N, Tag>::f(y, xx, p);
+#else
+		//Mont<N, isFullBit, Tag>::f(y, x, x, p);
+        GpuMont<N, isFullBit, Tag>::f(y, x, x, p);
+#endif
+	}
+	static const void3u f;
+};
+template<size_t N, bool isFullBit, class Tag>
+const void3u GpuSqrMont<N, isFullBit, Tag>::f = GpuSqrMont<N, isFullBit, Tag>::func;
+
 // z[N] <- (x[N] * y[N]) % p[N]
 template<size_t N, class Tag = Gtag>
 struct Mul {
@@ -666,6 +886,45 @@ struct Mul {
 template<size_t N, class Tag>
 const void4u Mul<N, Tag>::f = Mul<N, Tag>::func;
 
+template<size_t N, class Tag = Gtag>
+struct GpuMul {
+	static inline void func(Unit *z, const Unit *x, const Unit *y, const Unit *p)
+	{
+		Unit xy[N * 2];
+		MulPre<N, Tag>::f(xy, x, y);
+		Dbl_Mod<N, Tag>::f(z, xy, p);
+        return;
+        gpu::gpu_meta d_x, d_y, d_z, d_p;
+        d_x.resize(32);
+        d_y.resize(32);
+        d_z.resize(32*2);
+        d_p.resize(32);
+        gpu::copy_cpu_to_gpu(d_x.ptr, x, 32); 
+        gpu::copy_cpu_to_gpu(d_y.ptr, y, 32); 
+        //gpu::copy_cpu_to_gpu(d_z.ptr, z, 32); 
+        gpu::copy_cpu_to_gpu(d_p.ptr, p, 32); 
+        //gpu::gpu_mcl_mul((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr);
+        //gpu::copy_gpu_to_cpu(z, d_z.ptr, 32);
+        uint32_t tmpz[16];
+        Unit xy2[N*2];
+        gpu::copy_gpu_to_cpu(xy2, d_z.ptr, 64);
+        for(int i = 0; i < 8; i++){
+            if(xy2[i] != xy[i]){
+                printf("compare failed...\n");
+                break;
+            }
+        }
+		Dbl_Mod<N, Tag>::f(z, xy2, p);
+        d_x.release();
+        d_y.release();
+        d_z.release();
+        d_p.release();
+	}
+	static const void4u f;
+};
+template<size_t N, class Tag>
+const void4u GpuMul<N, Tag>::f = GpuMul<N, Tag>::func;
+
 // y[N] <- (x[N] * x[N]) % p[N]
 template<size_t N, class Tag = Gtag>
 struct Sqr {
@@ -677,8 +936,20 @@ struct Sqr {
 	}
 	static const void3u f;
 };
+template<size_t N, class Tag = Gtag>
+struct GpuSqr {
+	static inline void func(Unit *y, const Unit *x, const Unit *p)
+	{
+		Unit xx[N * 2];
+		SqrPre<N, Tag>::f(xx, x);
+		Dbl_Mod<N, Tag>::f(y, xx, p);
+	}
+	static const void3u f;
+};
 template<size_t N, class Tag>
 const void3u Sqr<N, Tag>::f = Sqr<N, Tag>::func;
+template<size_t N, class Tag>
+const void3u GpuSqr<N, Tag>::f = GpuSqr<N, Tag>::func;
 
 template<size_t N, class Tag = Gtag>
 struct Fp2MulNF {

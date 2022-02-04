@@ -30,6 +30,7 @@
 #include <mcl/util.hpp>
 #include <mcl/operator.hpp>
 #include <mcl/conversion.hpp>
+#include <mcl/low_func.hpp>
 
 namespace mcl {
 
@@ -158,9 +159,11 @@ public:
 		neg = fp::func_ptr_cast<void (*)(FpT& y, const FpT& x)>(op_.fp_negA_);
 		if (neg == 0) neg = negC;
 		mul = fp::func_ptr_cast<void (*)(FpT& z, const FpT& x, const FpT& y)>(op_.fp_mulA_);
-		if (mul == 0) mul = mulC;
+		gpu_mul = fp::func_ptr_cast<void (*)(FpT& z, const FpT& x, const FpT& y)>(op_.fp_mulA_);
+		if (mul == 0) { mul = mulC; gpu_mul = gpu_mulC; } 
 		sqr = fp::func_ptr_cast<void (*)(FpT& y, const FpT& x)>(op_.fp_sqrA_);
-		if (sqr == 0) sqr = sqrC;
+		gpu_sqr = fp::func_ptr_cast<void (*)(FpT& y, const FpT& x)>(op_.fp_sqrA_);
+		if (sqr == 0) { sqr = sqrC; gpu_sqr = gpu_sqrC; }
 #endif
 		*pb = true;
 	}
@@ -447,21 +450,43 @@ public:
 	}
 #ifdef MCL_XBYAK_DIRECT_CALL
 	static void (*add)(FpT& z, const FpT& x, const FpT& y);
+	static void (*gpu_add)(FpT& z, const FpT& x, const FpT& y);
 	static inline void addC(FpT& z, const FpT& x, const FpT& y) { op_.fp_add(z.v_, x.v_, y.v_, op_.p); }
+	static inline void gpu_addC(FpT& z, const FpT& x, const FpT& y) { 
+    //op_.fp_add_gpu(z.v_, x.v_, y.v_, op_.p); 
+    mcl::fp::GpuAdd<4, false, mcl::fp::Gtag>::f(z.v_, x.v_, y.v_, op_.p);
+    }
 	static void (*sub)(FpT& z, const FpT& x, const FpT& y);
 	static inline void subC(FpT& z, const FpT& x, const FpT& y) { op_.fp_sub(z.v_, x.v_, y.v_, op_.p); }
+	static inline void gpu_subC(FpT& z, const FpT& x, const FpT& y) { 
+        //op_.fp_sub(z.v_, x.v_, y.v_, op_.p); 
+        mcl::fp::GpuSub<4, false, mcl::fp::Gtag>::f(z.v_, x.v_, y.v_, op_.p);
+    }
 	static void (*neg)(FpT& y, const FpT& x);
 	static inline void negC(FpT& y, const FpT& x) { op_.fp_neg(y.v_, x.v_, op_.p); }
 	static void (*mul)(FpT& z, const FpT& x, const FpT& y);
+	static void (*gpu_mul)(FpT& z, const FpT& x, const FpT& y);
 	static inline void mulC(FpT& z, const FpT& x, const FpT& y) { op_.fp_mul(z.v_, x.v_, y.v_, op_.p); }
+	static inline void gpu_mulC(FpT& z, const FpT& x, const FpT& y) { 
+        //op_.fp_mul(z.v_, x.v_, y.v_, op_.p); 
+        //mcl::fp::GpuMul<4, mcl::fp::Gtag>::f(z.v_, x.v_, y.v_, op_.p);
+        mcl::fp::GpuMont<4, false, mcl::fp::Gtag>::f(z.v_, x.v_, y.v_, op_.p);
+    }
 	static void (*sqr)(FpT& y, const FpT& x);
+	static void (*gpu_sqr)(FpT& y, const FpT& x);
 	static inline void sqrC(FpT& y, const FpT& x) { op_.fp_sqr(y.v_, x.v_, op_.p); }
+	static inline void gpu_sqrC(FpT& y, const FpT& x) { 
+    //op_.fp_sqr_gpu(y.v_, x.v_, op_.p); 
+    mcl::fp::GpuSqrMont<4, false, mcl::fp::Gtag>::f(y.v_, x.v_, op_.p);
+    }
 #else
 	static inline void add(FpT& z, const FpT& x, const FpT& y) { op_.fp_add(z.v_, x.v_, y.v_, op_.p); }
 	static inline void sub(FpT& z, const FpT& x, const FpT& y) { op_.fp_sub(z.v_, x.v_, y.v_, op_.p); }
 	static inline void neg(FpT& y, const FpT& x) { op_.fp_neg(y.v_, x.v_, op_.p); }
 	static inline void mul(FpT& z, const FpT& x, const FpT& y) { op_.fp_mul(z.v_, x.v_, y.v_, op_.p); }
+	static inline void gpu_mul(FpT& z, const FpT& x, const FpT& y) { op_.fp_mul(z.v_, x.v_, y.v_, op_.p); }
 	static inline void sqr(FpT& y, const FpT& x) { op_.fp_sqr(y.v_, x.v_, op_.p); }
+	static inline void gpu_sqr(FpT& y, const FpT& x) { op_.fp_sqr_gpu(y.v_, x.v_, op_.p); }
 #endif
 	static inline void addPre(FpT& z, const FpT& x, const FpT& y) { op_.fp_addPre(z.v_, x.v_, y.v_); }
 	static inline void subPre(FpT& z, const FpT& x, const FpT& y) { op_.fp_subPre(z.v_, x.v_, y.v_); }
@@ -700,7 +725,9 @@ template<class tag, size_t maxBitSize> void (*FpT<tag, maxBitSize>::add)(FpT& z,
 template<class tag, size_t maxBitSize> void (*FpT<tag, maxBitSize>::sub)(FpT& z, const FpT& x, const FpT& y);
 template<class tag, size_t maxBitSize> void (*FpT<tag, maxBitSize>::neg)(FpT& y, const FpT& x);
 template<class tag, size_t maxBitSize> void (*FpT<tag, maxBitSize>::mul)(FpT& z, const FpT& x, const FpT& y);
+template<class tag, size_t maxBitSize> void (*FpT<tag, maxBitSize>::gpu_mul)(FpT& z, const FpT& x, const FpT& y);
 template<class tag, size_t maxBitSize> void (*FpT<tag, maxBitSize>::sqr)(FpT& y, const FpT& x);
+template<class tag, size_t maxBitSize> void (*FpT<tag, maxBitSize>::gpu_sqr)(FpT& y, const FpT& x);
 #endif
 
 } // mcl

@@ -8,7 +8,8 @@
 #else
 #include "detect_cpu.hpp"
 #endif
-#include "low_func.hpp"
+//#include "low_func.hpp"
+#include <mcl/low_func.hpp>
 #ifdef MCL_USE_LLVM
 #include "proto.hpp"
 #include "low_func_llvm.hpp"
@@ -244,14 +245,17 @@ void setOp2(Op& op)
 		if (op.isFullBit) {
 			op.fp_mul = Mont<N, true, Tag>::f;
 			op.fp_sqr = SqrMont<N, true, Tag>::f;
+			op.fp_sqr_gpu = GpuSqrMont<N, true, Tag>::f;
 		} else {
 			op.fp_mul = Mont<N, false, Tag>::f;
 			op.fp_sqr = SqrMont<N, false, Tag>::f;
+			op.fp_sqr_gpu = GpuSqrMont<N, false, Tag>::f;
 		}
 		op.fpDbl_mod = MontRed<N, Tag>::f;
 	} else {
 		op.fp_mul = Mul<N, Tag>::f;
 		op.fp_sqr = Sqr<N, Tag>::f;
+		op.fp_sqr_gpu = GpuSqr<N, Tag>::f;
 		op.fpDbl_mod = Dbl_Mod<N, Tag>::f;
 	}
 	op.fp_mulUnit = MulUnit<N, Tag>::f;
@@ -379,6 +383,11 @@ bool Op::init(const mpz_class& _p, size_t maxBitSize, int _xi_a, Mode mode, size
 	clear();
 	maxN = (maxBitSize + fp::UnitBitSize - 1) / fp::UnitBitSize;
 	N = gmp::getUnitSize(_p);
+    static int g_n = 0;
+    if(g_n != N){
+        printf("op::init %d %d\n", g_n, N);
+        g_n = N;
+    }
 	if (N > maxN) return false;
 	{
 		bool b;
@@ -422,6 +431,7 @@ bool Op::init(const mpz_class& _p, size_t maxBitSize, int _xi_a, Mode mode, size
 	"\n", ModeToStr(mode), isMont, (int)maxBitSize);
 #endif
 	isFullBit = (bitSize % UnitBitSize) == 0;
+    printf("op::init..isFullBit=%d, isMont=%d\n", (int)isFullBit, (int)this->isMont);
 
 #if defined(MCL_USE_LLVM) || defined(MCL_USE_XBYAK)
 	if (mode == FP_AUTO || mode == FP_LLVM || mode == FP_XBYAK) {

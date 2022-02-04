@@ -6,7 +6,8 @@
 #include <mcl/fp.hpp>
 #include <cybozu/xorshift.hpp>
 #include "../src/proto.hpp"
-#include "../src/low_func.hpp"
+//#include "../src/low_func.hpp"
+#include <mcl/low_func.hpp>
 #ifdef MCL_USE_LLVM
 #include "../src/low_func_llvm.hpp"
 #endif

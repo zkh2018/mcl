@@ -220,9 +220,11 @@ struct Op {
 	void2u fp_shr1;
 	void3u fp_neg;
 	void4u fp_add;
+	void4u fp_add_gpu;
 	void4u fp_sub;
 	void4u fp_mul;
 	void3u fp_sqr;
+	void3u fp_sqr_gpu;
 	void2uOp fp_invOp;
 	void2uIu fp_mulUnit; // fpN1_mod + fp_mulUnitPre
 
@@ -307,9 +309,11 @@ struct Op {
 		fp_shr1 = 0;
 		fp_neg = 0;
 		fp_add = 0;
+		fp_add_gpu = 0;
 		fp_sub = 0;
 		fp_mul = 0;
 		fp_sqr = 0;
+		fp_sqr_gpu = 0;
 		fp_invOp = 0;
 		fp_mulUnit = 0;
 
