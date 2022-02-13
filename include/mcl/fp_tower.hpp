@@ -120,11 +120,13 @@ public:
 #ifdef MCL_XBYAK_DIRECT_CALL
 	static void (*add)(FpDblT& z, const FpDblT& x, const FpDblT& y);
 	static void (*sub)(FpDblT& z, const FpDblT& x, const FpDblT& y);
+	static void (*gpu_sub)(FpDblT& z, const FpDblT& x, const FpDblT& y);
 	static void (*mod)(Fp& z, const FpDblT& xy);
 	static void (*addPre)(FpDblT& z, const FpDblT& x, const FpDblT& y);
 	static void (*subPre)(FpDblT& z, const FpDblT& x, const FpDblT& y);
 	static void addC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_add(z.v_, x.v_, y.v_, Fp::op_.p); }
 	static void subC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_sub(z.v_, x.v_, y.v_, Fp::op_.p); }
+	static void gpu_subC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_sub(z.v_, x.v_, y.v_, Fp::op_.p); }
 	static void modC(Fp& z, const FpDblT& xy) { Fp::op_.fpDbl_mod(z.v_, xy.v_, Fp::op_.p); }
 	static void addPreC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_addPre(z.v_, x.v_, y.v_); }
 	static void subPreC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_subPre(z.v_, x.v_, y.v_); }
@@ -154,7 +156,9 @@ public:
 		add = fp::func_ptr_cast<void (*)(FpDblT&, const FpDblT&, const FpDblT&)>(op.fpDbl_addA_);
 		if (add == 0) add = addC;
 		sub = fp::func_ptr_cast<void (*)(FpDblT&, const FpDblT&, const FpDblT&)>(op.fpDbl_subA_);
+		gpu_sub = fp::func_ptr_cast<void (*)(FpDblT&, const FpDblT&, const FpDblT&)>(op.fpDbl_subA_);
 		if (sub == 0) sub = subC;
+		if (gpu_sub == 0) gpu_sub = gpu_subC;
 		mod = fp::func_ptr_cast<void (*)(Fp&, const FpDblT&)>(op.fpDbl_modA_);
 		if (mod == 0) mod = modC;
 		addPre = fp::func_ptr_cast<void (*)(FpDblT&, const FpDblT&, const FpDblT&)>(op.fpDbl_addPre);
@@ -162,11 +166,14 @@ public:
 		subPre = fp::func_ptr_cast<void (*)(FpDblT&, const FpDblT&, const FpDblT&)>(op.fpDbl_subPre);
 		if (subPre == 0) subPre = subPreC;
 #endif
-		if (op.fpDbl_mulPreA_) {
-			mulPre = fp::func_ptr_cast<void (*)(FpDblT&, const Fp&, const Fp&)>(op.fpDbl_mulPreA_);
-		} else {
-			mulPre = mulPreC;
-		}
+		//if (op.fpDbl_mulPreA_) {
+        //    printf("fpDbl_mulPreA_...\n");
+		//	mulPre = fp::func_ptr_cast<void (*)(FpDblT&, const Fp&, const Fp&)>(op.fpDbl_mulPreA_);
+		//} else {
+        //    printf("mulPreC...\n");
+		//	mulPre = mulPreC;
+		//}
+        mulPre = mulPreC;
 		if (op.fpDbl_sqrPreA_) {
 			sqrPre = fp::func_ptr_cast<void (*)(FpDblT&, const Fp&)>(op.fpDbl_sqrPreA_);
 		} else {
@@ -180,6 +187,7 @@ public:
 #ifdef MCL_XBYAK_DIRECT_CALL
 template<class Fp> void (*FpDblT<Fp>::add)(FpDblT&, const FpDblT&, const FpDblT&);
 template<class Fp> void (*FpDblT<Fp>::sub)(FpDblT&, const FpDblT&, const FpDblT&);
+template<class Fp> void (*FpDblT<Fp>::gpu_sub)(FpDblT&, const FpDblT&, const FpDblT&);
 template<class Fp> void (*FpDblT<Fp>::mod)(Fp&, const FpDblT&);
 template<class Fp> void (*FpDblT<Fp>::addPre)(FpDblT&, const FpDblT&, const FpDblT&);
 template<class Fp> void (*FpDblT<Fp>::subPre)(FpDblT&, const FpDblT&, const FpDblT&);
@@ -243,6 +251,7 @@ public:
 #ifdef MCL_XBYAK_DIRECT_CALL
 	static void (*add)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 	static void (*sub)(Fp2T& z, const Fp2T& x, const Fp2T& y);
+	static void (*gpu_sub)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 	static void (*neg)(Fp2T& y, const Fp2T& x);
 	static void (*mul)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 	static void (*sqr)(Fp2T& y, const Fp2T& x);
@@ -399,7 +408,10 @@ public:
 		add = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_addA_);
 		if (add == 0) add = addC;
 		sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
+		gpu_sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
 		if (sub == 0) sub = subC;
+		//if (gpu_sub == 0) 
+        gpu_sub = gpu_subC;
 		neg = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_negA_);
 		if (neg == 0) neg = negC;
 		mul = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_mulA_);
@@ -495,6 +507,12 @@ private:
 	}
 	static void subC(Fp2T& z, const Fp2T& x, const Fp2T& y)
 	{
+		Fp::sub(z.a, x.a, y.a);
+		Fp::sub(z.b, x.b, y.b);
+	}
+	static void gpu_subC(Fp2T& z, const Fp2T& x, const Fp2T& y)
+	{
+        //printf("call Fp2T gpu_subC..\n");
 		Fp::sub(z.a, x.a, y.a);
 		Fp::sub(z.b, x.b, y.b);
 	}
@@ -624,6 +642,7 @@ private:
 #ifdef MCL_XBYAK_DIRECT_CALL
 template<class Fp_> void (*Fp2T<Fp_>::add)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 template<class Fp_> void (*Fp2T<Fp_>::sub)(Fp2T& z, const Fp2T& x, const Fp2T& y);
+template<class Fp_> void (*Fp2T<Fp_>::gpu_sub)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 template<class Fp_> void (*Fp2T<Fp_>::neg)(Fp2T& y, const Fp2T& x);
 template<class Fp_> void (*Fp2T<Fp_>::mul)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 template<class Fp_> void (*Fp2T<Fp_>::sqr)(Fp2T& y, const Fp2T& x);
@@ -650,6 +669,11 @@ struct Fp2DblT {
 	{
 		FpDbl::sub(z.a, x.a, y.a);
 		FpDbl::sub(z.b, x.b, y.b);
+	}
+	static void gpu_sub(Fp2DblT& z, const Fp2DblT& x, const Fp2DblT& y)
+	{
+		FpDbl::gpu_sub(z.a, x.a, y.a);
+		FpDbl::gpu_sub(z.b, x.b, y.b);
 	}
 	static void subPre(Fp2DblT& z, const Fp2DblT& x, const Fp2DblT& y)
 	{
@@ -882,6 +906,12 @@ struct Fp6T : public fp::Serializable<Fp6T<_Fp>,
 		Fp2::sub(z.a, x.a, y.a);
 		Fp2::sub(z.b, x.b, y.b);
 		Fp2::sub(z.c, x.c, y.c);
+	}
+	static void gpu_sub(Fp6T& z, const Fp6T& x, const Fp6T& y)
+	{
+		Fp2::gpu_sub(z.a, x.a, y.a);
+		Fp2::gpu_sub(z.b, x.b, y.b);
+		Fp2::gpu_sub(z.c, x.c, y.c);
 	}
 	static void neg(Fp6T& y, const Fp6T& x)
 	{

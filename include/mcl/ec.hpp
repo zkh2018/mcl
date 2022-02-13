@@ -564,6 +564,77 @@ public:
 		dblNoVerifyInf(R, P);
 	}
 #ifndef MCL_EC_USE_AFFINE
+	static inline void gpu_addJacobi_g2(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)
+	{
+		Fp r, U1, S1, H, H3;
+		if (isPzOne) {
+			// r = 1;
+		} else {
+			Fp::sqr(r, P.z);
+		}
+		if (isQzOne) {
+			U1 = P.x;
+			if (isPzOne) {
+				H = Q.x;
+			} else {
+				Fp::mul(H, Q.x, r);
+			}
+			H -= U1;
+			S1 = P.y;
+		} else {
+			Fp::sqr(S1, Q.z);
+			Fp::mul(U1, P.x, S1);
+			if (isPzOne) {
+				H = Q.x;
+			} else {
+				Fp::mul(H, Q.x, r);
+			}
+			H -= U1;
+			S1 *= Q.z;
+			S1 *= P.y;
+		}
+		if (isPzOne) {
+			r = Q.y;
+		} else {
+			r *= P.z;
+			r *= Q.y;
+		}
+		r -= S1;
+		if (H.isZero()) {
+			if (r.isZero()) {
+				dblNoVerifyInf(R, P);
+			} else {
+				R.clear();
+			}
+			return;
+		}
+		if (isPzOne) {
+			if (isQzOne) {
+				R.z = H;
+			} else {
+				Fp::mul(R.z, H, Q.z);
+			}
+		} else {
+			if (isQzOne) {
+				Fp::mul(R.z, P.z, H);
+			} else {
+				Fp::mul(R.z, P.z, Q.z);
+				R.z *= H;
+			}
+		}
+		Fp::sqr(H3, H); // H^2
+		Fp::sqr(R.y, r); // r^2
+		U1 *= H3; // U1 H^2
+		H3 *= H; // H^3
+		R.y -= U1;
+		R.y -= U1;
+		Fp::gpu_sub(R.x, R.y, H3);
+		U1 -= R.x;
+		U1 *= r;
+		H3 *= S1;
+		Fp::sub(R.y, U1, H3);
+	}
+
 	static inline void gpu_addJacobi(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)
 	{
 		Fp r, U1, S1, H, H3;
@@ -899,6 +970,26 @@ public:
 
 
 	}
+
+	static inline void gpu_add_g2(EcT& R, const EcT& P, const EcT& Q) {
+		if (P.isZero()) { R = Q; return; }
+		if (Q.isZero()) { R = P; return; }
+		if (&P == &Q) {
+			dblNoVerifyInf(R, P);
+			return;
+		}
+		bool isPzOne = P.z.isOne();
+		bool isQzOne = Q.z.isOne();
+		switch (mode_) {
+		case ec::Jacobi:
+			gpu_addJacobi_g2(R, P, Q, isPzOne, isQzOne);
+			break;
+		case ec::Proj:
+			addProj(R, P, Q, isPzOne, isQzOne);
+			break;
+		}
+	}
+
 	static inline void sub(EcT& R, const EcT& P, const EcT& Q)
 	{
 		EcT nQ;
