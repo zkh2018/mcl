@@ -624,22 +624,24 @@ public:
 		}
 		//Fp::sqr(H3, H); // H^2
 		Fp::gpu_sqr(H3, H); // H^2
-		Fp::sqr(R.y, r); // r^2
+		//Fp::sqr(R.y, r); // r^2
+		Fp::gpu_sqr(R.y, r); // H^2
 		//U1 *= H3; // U1 H^2
         Fp::gpu_mul(U1, U1, H3);
-		//H3 *= H; // H^3
-        Fp::gpu_mul(H3, H3, H);
+		H3 *= H; // H^3
+        //Fp::gpu_mul(H3, H3, H);
 		//R.y -= U1;
         Fp::gpu_sub(R.y, R.y, U1);
-		//R.y -= U1;
-        Fp::gpu_sub(R.y, R.y, U1);
-		Fp::gpu_sub(R.x, R.y, H3);
-		//U1 -= R.x;
-        Fp::gpu_sub(U1, U1, R.x);
+		R.y -= U1;
+        //Fp::gpu_sub(R.y, R.y, U1);
+		R.x = R.y - H3;
+		//Fp::gpu_sub(R.x, R.y, H3);
+		U1 -= R.x;
+        //Fp::gpu_sub(U1, U1, R.x);
 		U1 *= r;
 		H3 *= S1;
-		//Fp::sub(R.y, U1, H3);
-		Fp::gpu_sub(R.y, U1, H3);
+		Fp::sub(R.y, U1, H3);
+		//Fp::gpu_sub(R.y, U1, H3);
 	}
 
 	static inline void gpu_addJacobi(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)

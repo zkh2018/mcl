@@ -179,14 +179,14 @@ public:
 		if (subPre == 0) subPre = subPreC;
 		gpu_subPre = gpu_subPreC;
 #endif
-		//if (op.fpDbl_mulPreA_) {
-        //    printf("fpDbl_mulPreA_...\n");
-		//	mulPre = fp::func_ptr_cast<void (*)(FpDblT&, const Fp&, const Fp&)>(op.fpDbl_mulPreA_);
-		//} else {
-        //    printf("mulPreC...\n");
-		//	mulPre = mulPreC;
-		//}
-        mulPre = mulPreC;
+		if (op.fpDbl_mulPreA_) {
+            printf("fpDbl_mulPreA_...\n");
+			mulPre = fp::func_ptr_cast<void (*)(FpDblT&, const Fp&, const Fp&)>(op.fpDbl_mulPreA_);
+		} else {
+            printf("mulPreC...\n");
+			mulPre = mulPreC;
+		}
+        //mulPre = mulPreC;
         gpu_mulPre = gpu_mulPreC;
 		if (op.fpDbl_sqrPreA_) {
 			sqrPre = fp::func_ptr_cast<void (*)(FpDblT&, const Fp&)>(op.fpDbl_sqrPreA_);
@@ -423,24 +423,24 @@ public:
 		assert(op.xi_a);
 		mul_xi = 0;
 #ifdef MCL_XBYAK_DIRECT_CALL
-		//add = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_addA_);
-		//if (add == 0) 
+		add = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_addA_);
+		if (add == 0) 
         add = addC;
-		//sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
+		sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
 		//gpu_sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
-		//if (sub == 0) 
+		if (sub == 0) 
         sub = subC;
 		//if (gpu_sub == 0) 
         gpu_sub = gpu_subC;
-		//neg = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_negA_);
-		//if (neg == 0) 
+		neg = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_negA_);
+		if (neg == 0) 
         neg = negC;
-		//mul = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_mulA_);
-		//if (mul == 0) 
+		mul = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_mulA_);
+		if (mul == 0) 
         mul = mulC;
         gpu_mul = gpu_mulC;
-		//sqr = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_sqrA_);
-		//if (sqr == 0) 
+		sqr = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_sqrA_);
+		if (sqr == 0) 
         sqr = sqrC;
         gpu_sqr = gpu_sqrC;
 		mul_xi = fp::func_ptr_cast<void (*)(Fp2T&, const Fp2T&)>(op.fp2_mul_xiA_);
@@ -540,11 +540,11 @@ private:
         //printf("call Fp2T gpu_subC..\n");
         static int i = 0;
         if(i > 10){
-		Fp::subC(z.a, x.a, y.a);
-		Fp::subC(z.b, x.b, y.b);
+            Fp::subC(z.a, x.a, y.a);
+            Fp::subC(z.b, x.b, y.b);
         }else{
-		Fp::gpu_subC_g2(z.a, z.b, x.a, x.b, y.a, y.b);
-        i++;
+            Fp::gpu_subC_g2(z.a, z.b, x.a, x.b, y.a, y.b);
+            i++;
         }
         //if(true){
         //    //Fp2T tmpz;
@@ -838,16 +838,18 @@ struct Fp2DblT {
 	static void init()
  	{
 		const mcl::fp::Op& op = Fp::getOp();
-		//if (op.fp2Dbl_mulPreA_) {
-		//	mulPre = fp::func_ptr_cast<void (*)(Fp2DblT&, const Fp2&, const Fp2&)>(op.fp2Dbl_mulPreA_);
-		//} else {
-		//	if (op.isFullBit) {
-		//		mulPre = fp2Dbl_mulPreW<true>;
-		//	} else {
-		//		mulPre = fp2Dbl_mulPreW<false>;
-		//	}
-		//}
-		mulPre = fp2Dbl_mulPreW<false>;
+		if (op.fp2Dbl_mulPreA_) {
+            printf("fp2dbl_mulPreA..\n");
+			mulPre = fp::func_ptr_cast<void (*)(Fp2DblT&, const Fp2&, const Fp2&)>(op.fp2Dbl_mulPreA_);
+		} else {
+            printf("fp2dbl_mulPreW..\n");
+			if (op.isFullBit) {
+				mulPre = fp2Dbl_mulPreW<true>;
+			} else {
+				mulPre = fp2Dbl_mulPreW<false>;
+			}
+		}
+		//mulPre = fp2Dbl_mulPreW<false>;
 		gpu_mulPre = gpu_fp2Dbl_mulPreW<false>;
 		if (op.fp2Dbl_sqrPreA_) {
 			sqrPre = fp::func_ptr_cast<void (*)(Fp2DblT&, const Fp2&)>(op.fp2Dbl_sqrPreA_);
