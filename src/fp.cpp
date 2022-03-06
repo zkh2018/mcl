@@ -225,6 +225,7 @@ struct SetFpDbl<N, true> {
 //		if (!op.isFullBit) {
 			op.fpDbl_addPre = AddPre<N * 2, Ltag>::f;
 			op.fpDbl_subPre = SubPre<N * 2, Ltag>::f;
+			op.fpDbl_subPre_gpu = GpuSubPre<N * 2, Ltag>::f;
 //		}
 	}
 };
@@ -252,6 +253,7 @@ void setOp2(Op& op)
 			op.fp_sqr_gpu = GpuSqrMont<N, false, Tag>::f;
 		}
 		op.fpDbl_mod = MontRed<N, Tag>::f;
+		op.fpDbl_mod_gpu = GpuMontRed<N, Tag>::f;
 	} else {
 		op.fp_mul = Mul<N, Tag>::f;
 		op.fp_sqr = Sqr<N, Tag>::f;
@@ -261,6 +263,7 @@ void setOp2(Op& op)
 	op.fp_mulUnit = MulUnit<N, Tag>::f;
 	if (!gmpIsFasterThanLLVM) {
 		op.fpDbl_mulPre = MulPre<N, Tag>::f;
+		op.fpDbl_mulPre_gpu = GpuMulPre<N, Tag>::f;
 		op.fpDbl_sqrPre = SqrPre<N, Tag>::f;
 	}
 	op.fp_mulUnitPre = MulUnitPre<N, Tag>::f;
@@ -269,8 +272,12 @@ void setOp2(Op& op)
 	op.fpDbl_sub = DblSub<N, Tag>::f;
 	op.fp_addPre = AddPre<N, Tag>::f;
 	op.fp_subPre = SubPre<N, Tag>::f;
+	op.fp_subPre_gpu = GpuSubPre<N, Tag>::f;
 	op.fp2_mulNF = Fp2MulNF<N, Tag>::f;
 	SetFpDbl<N, enableFpDbl>::exec(op);
+	op.fp_mulPreW_gpu = GpuMulPreW<N, Tag>::f;
+	op.fp_sqr_g2_gpu = GpuSqrG2<N, Tag>::f;
+	op.fp_mul_g2_gpu = GpuMulG2<N, Tag>::f;
 }
 
 template<size_t N>

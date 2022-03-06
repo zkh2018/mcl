@@ -15,6 +15,9 @@ class FpDblT : public fp::Serializable<FpDblT<Fp> > {
 	typedef fp::Unit Unit;
 	Unit v_[Fp::maxSize * 2];
 public:
+    Unit* getUnit(){
+        return v_;
+    }
 	static size_t getUnitSize() { return Fp::op_.N * 2; }
 	FpDblT() : v_()
 	{
@@ -124,25 +127,34 @@ public:
 	static void (*mod)(Fp& z, const FpDblT& xy);
 	static void (*addPre)(FpDblT& z, const FpDblT& x, const FpDblT& y);
 	static void (*subPre)(FpDblT& z, const FpDblT& x, const FpDblT& y);
+	static void (*gpu_subPre)(FpDblT& z, const FpDblT& x, const FpDblT& y);
 	static void addC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_add(z.v_, x.v_, y.v_, Fp::op_.p); }
 	static void subC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_sub(z.v_, x.v_, y.v_, Fp::op_.p); }
 	static void gpu_subC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_sub(z.v_, x.v_, y.v_, Fp::op_.p); }
 	static void modC(Fp& z, const FpDblT& xy) { Fp::op_.fpDbl_mod(z.v_, xy.v_, Fp::op_.p); }
+	static void gpu_modC(Fp& z, const FpDblT& xy) { 
+        //Fp::op_.fpDbl_mod(z.v_, xy.v_, Fp::op_.p); 
+        Fp::op_.fpDbl_mod_gpu(z.v_, xy.v_, Fp::op_.p); 
+    }
 	static void addPreC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_addPre(z.v_, x.v_, y.v_); }
 	static void subPreC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_subPre(z.v_, x.v_, y.v_); }
+	static void gpu_subPreC(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_subPre_gpu(z.v_, x.v_, y.v_); }
 #else
 	static void add(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_add(z.v_, x.v_, y.v_, Fp::op_.p); }
 	static void sub(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_sub(z.v_, x.v_, y.v_, Fp::op_.p); }
 	static void mod(Fp& z, const FpDblT& xy) { Fp::op_.fpDbl_mod(z.v_, xy.v_, Fp::op_.p); }
 	static void addPre(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_addPre(z.v_, x.v_, y.v_); }
 	static void subPre(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_subPre(z.v_, x.v_, y.v_); }
+	static void gpu_subPre(FpDblT& z, const FpDblT& x, const FpDblT& y) { Fp::op_.fpDbl_subPre_gpu(z.v_, x.v_, y.v_); }
 #endif
 	static void mulPreC(FpDblT& xy, const Fp& x, const Fp& y) { Fp::op_.fpDbl_mulPre(xy.v_, x.v_, y.v_); }
+	static void gpu_mulPreC(FpDblT& xy, const Fp& x, const Fp& y) { Fp::op_.fpDbl_mulPre_gpu(xy.v_, x.v_, y.v_); }
 	static void sqrPreC(FpDblT& xx, const Fp& x) { Fp::op_.fpDbl_sqrPre(xx.v_, x.v_); }
 	/*
 		mul(z, x, y) = mulPre(xy, x, y) + mod(z, xy)
 	*/
 	static void (*mulPre)(FpDblT& xy, const Fp& x, const Fp& y);
+	static void (*gpu_mulPre)(FpDblT& xy, const Fp& x, const Fp& y);
 	static void (*sqrPre)(FpDblT& xx, const Fp& x);
 	static void mulUnit(FpDblT& z, const FpDblT& x, Unit y)
 	{
@@ -165,6 +177,7 @@ public:
 		if (addPre == 0) addPre = addPreC;
 		subPre = fp::func_ptr_cast<void (*)(FpDblT&, const FpDblT&, const FpDblT&)>(op.fpDbl_subPre);
 		if (subPre == 0) subPre = subPreC;
+		gpu_subPre = gpu_subPreC;
 #endif
 		//if (op.fpDbl_mulPreA_) {
         //    printf("fpDbl_mulPreA_...\n");
@@ -174,6 +187,7 @@ public:
 		//	mulPre = mulPreC;
 		//}
         mulPre = mulPreC;
+        gpu_mulPre = gpu_mulPreC;
 		if (op.fpDbl_sqrPreA_) {
 			sqrPre = fp::func_ptr_cast<void (*)(FpDblT&, const Fp&)>(op.fpDbl_sqrPreA_);
 		} else {
@@ -191,8 +205,10 @@ template<class Fp> void (*FpDblT<Fp>::gpu_sub)(FpDblT&, const FpDblT&, const FpD
 template<class Fp> void (*FpDblT<Fp>::mod)(Fp&, const FpDblT&);
 template<class Fp> void (*FpDblT<Fp>::addPre)(FpDblT&, const FpDblT&, const FpDblT&);
 template<class Fp> void (*FpDblT<Fp>::subPre)(FpDblT&, const FpDblT&, const FpDblT&);
+template<class Fp> void (*FpDblT<Fp>::gpu_subPre)(FpDblT&, const FpDblT&, const FpDblT&);
 #endif
 template<class Fp> void (*FpDblT<Fp>::mulPre)(FpDblT&, const Fp&, const Fp&);
+template<class Fp> void (*FpDblT<Fp>::gpu_mulPre)(FpDblT&, const Fp&, const Fp&);
 template<class Fp> void (*FpDblT<Fp>::sqrPre)(FpDblT&, const Fp&);
 
 template<class Fp> struct Fp12T;
@@ -254,7 +270,9 @@ public:
 	static void (*gpu_sub)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 	static void (*neg)(Fp2T& y, const Fp2T& x);
 	static void (*mul)(Fp2T& z, const Fp2T& x, const Fp2T& y);
+	static void (*gpu_mul)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 	static void (*sqr)(Fp2T& y, const Fp2T& x);
+	static void (*gpu_sqr)(Fp2T& y, const Fp2T& x);
 #else
 	static void add(Fp2T& z, const Fp2T& x, const Fp2T& y) { addC(z, x, y); }
 	static void sub(Fp2T& z, const Fp2T& x, const Fp2T& y) { subC(z, x, y); }
@@ -405,19 +423,26 @@ public:
 		assert(op.xi_a);
 		mul_xi = 0;
 #ifdef MCL_XBYAK_DIRECT_CALL
-		add = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_addA_);
-		if (add == 0) add = addC;
-		sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
-		gpu_sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
-		if (sub == 0) sub = subC;
+		//add = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_addA_);
+		//if (add == 0) 
+        add = addC;
+		//sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
+		//gpu_sub = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_subA_);
+		//if (sub == 0) 
+        sub = subC;
 		//if (gpu_sub == 0) 
         gpu_sub = gpu_subC;
-		neg = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_negA_);
-		if (neg == 0) neg = negC;
-		mul = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_mulA_);
-		if (mul == 0) mul = mulC;
-		sqr = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_sqrA_);
-		if (sqr == 0) sqr = sqrC;
+		//neg = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_negA_);
+		//if (neg == 0) 
+        neg = negC;
+		//mul = fp::func_ptr_cast<void (*)(Fp2T& z, const Fp2T& x, const Fp2T& y)>(op.fp2_mulA_);
+		//if (mul == 0) 
+        mul = mulC;
+        gpu_mul = gpu_mulC;
+		//sqr = fp::func_ptr_cast<void (*)(Fp2T& y, const Fp2T& x)>(op.fp2_sqrA_);
+		//if (sqr == 0) 
+        sqr = sqrC;
+        gpu_sqr = gpu_sqrC;
 		mul_xi = fp::func_ptr_cast<void (*)(Fp2T&, const Fp2T&)>(op.fp2_mul_xiA_);
 #endif
 		op.fp2_inv = fp2_invW;
@@ -513,8 +538,23 @@ private:
 	static void gpu_subC(Fp2T& z, const Fp2T& x, const Fp2T& y)
 	{
         //printf("call Fp2T gpu_subC..\n");
-		Fp::sub(z.a, x.a, y.a);
-		Fp::sub(z.b, x.b, y.b);
+        static int i = 0;
+        if(i > 10){
+		Fp::subC(z.a, x.a, y.a);
+		Fp::subC(z.b, x.b, y.b);
+        }else{
+		Fp::gpu_subC_g2(z.a, z.b, x.a, x.b, y.a, y.b);
+        i++;
+        }
+        //if(true){
+        //    //Fp2T tmpz;
+        //    //Fp::gpu_subC_g2(tmpz.a, tmpz.b, x.a, x.b, y.a, y.b);
+        //    Fp tmpz;
+        //    Fp::gpu_subC(tmpz, x.a, y.a);
+        //    if(tmpz != z.a){
+        //        printf("compare gpu_sub failed..\n");
+        //    }
+        //}
 	}
 	static void negC(Fp2T& y, const Fp2T& x)
 	{
@@ -553,12 +593,63 @@ private:
 		op.fp2_mulNF((Unit*)&z, (const Unit*)&x, (const Unit*)&y, op.p);
 	}
 #endif
+	static void gpu_mulC(Fp2T& z, const Fp2T& x, const Fp2T& y)
+	{
+		Fp2Dbl d;
+		Fp2Dbl::mulPre(d, x, y);
+		//Fp2Dbl::gpu_mulPre(d, x, y);
+		//FpDbl::mod(z.a, d.a);
+		//FpDbl::mod(z.b, d.b);
+		//FpDbl::gpu_modC(z.a, d.a);
+		FpDbl::modC(z.a, d.a);
+		FpDbl::modC(z.b, d.b);
+
+        static bool first = false;
+        if(first){
+            //first = false;
+            ///Fp2Dbl d2;
+            ///Fp2T z2;
+            ///Fp2Dbl::gpu_mulPre(d2, x, y);
+            ///FpDbl::modC(z.a, d2.a);
+            ///FpDbl::modC(z.b, d2.b);
+            //int cmp1 = memcmp(z.a.getUnit(), z2.a.getUnit(), 32);
+            //int cmp2 = memcmp(z.b.getUnit(), z2.b.getUnit(), 32);
+            //printf("compare z2 z %d %d...\n", cmp1, cmp2);
+
+            if(true){
+                Unit lz[8], lx[8], ly[8];
+                memcpy(lx, x.a.getUnit(), 32);
+                memcpy(&lx[4], x.b.getUnit(), 32);
+                memcpy(ly, y.a.getUnit(), 32);
+                memcpy(&ly[4], y.b.getUnit(), 32);
+                const mcl::fp::Op& op = Fp::getOp();
+                op.fp_mul_g2_gpu(lz, lx, ly, op.p);
+                z.a.copy(lz);
+                z.b.copy(&lz[4]);
+                //cmp1 = memcmp(z.a.getUnit(), lz, 32);
+                //cmp2 = memcmp(z.b.getUnit(), &lz[4], 32);
+                ///printf("compare gpu_mul_g2: %d %d\n", cmp1, cmp2);
+                ///printf("correct_z:");
+                ///for(int i = 0; i < 4; i++){
+                ///    printf("%lu ", z.a.getUnit()[i]);
+                ///}
+                ///printf("\n");
+                ///for(int i = 0; i < 4; i++){
+                ///    printf("%lu ", z.b.getUnit()[i]);
+                ///}
+                ///printf("\n");
+            }
+        }
+	}
 	static void mulC(Fp2T& z, const Fp2T& x, const Fp2T& y)
 	{
 		Fp2Dbl d;
 		Fp2Dbl::mulPre(d, x, y);
 		FpDbl::mod(z.a, d.a);
 		FpDbl::mod(z.b, d.b);
+		//Fp2Dbl::gpu_mulPre(d, x, y);
+		//FpDbl::modC(z.a, d.a);
+		//FpDbl::modC(z.b, d.b);
 	}
 	/*
 		x = a + bi, i^2 = -1
@@ -588,6 +679,30 @@ private:
 		FpDbl::mod(py[1], d2);
 #endif
 	}
+
+    static void gpu_sqrC(Fp2T& y, const Fp2T& x){
+		const Fp& a = x.a;
+		const Fp& b = x.b;
+		Fp t1, t2, t3;
+		Fp::add(t1, b, b); // 2b
+		t1 *= a; // 2ab
+		Fp::add(t2, a, b); // a + b
+		Fp::sub(t3, a, b); // a - b
+		Fp::mul(y.a, t2, t3); // (a + b)(a - b)
+		y.b = t1;
+        static bool test = true;
+        if(test){
+            test = false;
+            Unit lx[8], ly[8];
+            memcpy(lx, x.a.getUnit(), 32);
+            memcpy(&lx[4], x.b.getUnit(), 32);
+            const mcl::fp::Op& op = Fp::getOp();
+            op.fp_sqr_g2_gpu(ly, lx, op.p);
+            int cmp1 = memcmp(y.a.getUnit(), ly, 32);
+            int cmp2 = memcmp(y.b.getUnit(), &ly[4], 32);
+            printf("compare gpu_sqr_g2: %d %d\n", cmp1, cmp2);
+        }
+    }
 	/*
 		xi = xi_a + i
 		x = a + bi
@@ -645,7 +760,9 @@ template<class Fp_> void (*Fp2T<Fp_>::sub)(Fp2T& z, const Fp2T& x, const Fp2T& y
 template<class Fp_> void (*Fp2T<Fp_>::gpu_sub)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 template<class Fp_> void (*Fp2T<Fp_>::neg)(Fp2T& y, const Fp2T& x);
 template<class Fp_> void (*Fp2T<Fp_>::mul)(Fp2T& z, const Fp2T& x, const Fp2T& y);
+template<class Fp_> void (*Fp2T<Fp_>::gpu_mul)(Fp2T& z, const Fp2T& x, const Fp2T& y);
 template<class Fp_> void (*Fp2T<Fp_>::sqr)(Fp2T& y, const Fp2T& x);
+template<class Fp_> void (*Fp2T<Fp_>::gpu_sqr)(Fp2T& y, const Fp2T& x);
 #endif
 template<class Fp_> void (*Fp2T<Fp_>::mul_xi)(Fp2T& y, const Fp2T& x);
 
@@ -703,6 +820,7 @@ struct Fp2DblT {
 		}
 	}
 	static void (*mulPre)(Fp2DblT&, const Fp2&, const Fp2&);
+	static void (*gpu_mulPre)(Fp2DblT&, const Fp2&, const Fp2&);
 	static void (*sqrPre)(Fp2DblT&, const Fp2&);
 	static void mod(Fp2& y, const Fp2DblT& x)
 	{
@@ -720,15 +838,17 @@ struct Fp2DblT {
 	static void init()
  	{
 		const mcl::fp::Op& op = Fp::getOp();
-		if (op.fp2Dbl_mulPreA_) {
-			mulPre = fp::func_ptr_cast<void (*)(Fp2DblT&, const Fp2&, const Fp2&)>(op.fp2Dbl_mulPreA_);
-		} else {
-			if (op.isFullBit) {
-				mulPre = fp2Dbl_mulPreW<true>;
-			} else {
-				mulPre = fp2Dbl_mulPreW<false>;
-			}
-		}
+		//if (op.fp2Dbl_mulPreA_) {
+		//	mulPre = fp::func_ptr_cast<void (*)(Fp2DblT&, const Fp2&, const Fp2&)>(op.fp2Dbl_mulPreA_);
+		//} else {
+		//	if (op.isFullBit) {
+		//		mulPre = fp2Dbl_mulPreW<true>;
+		//	} else {
+		//		mulPre = fp2Dbl_mulPreW<false>;
+		//	}
+		//}
+		mulPre = fp2Dbl_mulPreW<false>;
+		gpu_mulPre = gpu_fp2Dbl_mulPreW<false>;
 		if (op.fp2Dbl_sqrPreA_) {
 			sqrPre = fp::func_ptr_cast<void (*)(Fp2DblT&, const Fp2&)>(op.fp2Dbl_sqrPreA_);
 		} else {
@@ -773,6 +893,61 @@ struct Fp2DblT {
 		}
 		FpDbl::sub(d0, d0, d2); // ac - bd
 	}
+
+	template<bool isFullBit>
+	static void gpu_fp2Dbl_mulPreW(Fp2DblT& z, const Fp2& x, const Fp2& y)
+	{
+        static bool first = true;
+        
+		const Fp& a = x.a;
+		const Fp& b = x.b;
+		const Fp& c = y.a;
+		const Fp& d = y.b;
+		FpDbl& d0 = z.a;
+		FpDbl& d1 = z.b;
+		FpDbl d2;
+		Fp s, t;
+		if (isFullBit) {
+			Fp::add(s, a, b);
+			Fp::add(t, c, d);
+		} else {
+			Fp::addPre(s, a, b);
+			Fp::addPre(t, c, d);
+		}
+		//FpDbl::gpu_mulPre(d1, s, t); // (a + b)(c + d)
+		FpDbl::mulPre(d1, s, t); // (a + b)(c + d)
+		FpDbl::mulPre(d0, a, c);
+		FpDbl::mulPre(d2, b, d);
+        ///static bool first = true;
+		if (isFullBit) {
+			FpDbl::sub(d1, d1, d0); // (a + b)(c + d) - ac
+			FpDbl::sub(d1, d1, d2); // (a + b)(c + d) - ac - bd
+		} else {
+			FpDbl::subPre(d1, d1, d0);
+			FpDbl::subPre(d1, d1, d2);
+		}
+		FpDbl::sub(d0, d0, d2); // ac - bd
+        
+        static bool test = false;
+        if(test){
+            test = false;
+            const mcl::fp::Op& op = Fp::getOp();
+            Fp2DblT tmpz;
+            Unit lz[4 * 4], lx[4 * 2], ly[4 * 2];
+            memcpy(lx, x.a.getUnit(), 32);
+            memcpy(&lx[4], x.b.getUnit(), 32);
+            memcpy(ly, y.a.getUnit(), 32);
+            memcpy(&ly[4], y.b.getUnit(), 32);
+            op.fp_mulPreW_gpu(lz, lx, ly, op.p);
+            int cmp1 = memcmp(lz, z.a.getUnit(), 64);
+            int cmp2 = memcmp(lz + 8, z.b.getUnit(), 64);
+            printf("compare mulPreW: %d %d\n", cmp1, cmp2);
+            if(cmp1 != 0 || cmp2 != 0){
+                printf("compare mulPreW: %d %d\n", cmp1, cmp2);
+            }
+        }
+	}
+
 	template<bool isFullBit>
 	static void fp2Dbl_sqrPreW(Fp2DblT& y, const Fp2& x)
 	{
@@ -791,6 +966,7 @@ struct Fp2DblT {
 };
 
 template<class Fp> void (*Fp2DblT<Fp>::mulPre)(Fp2DblT&, const Fp2T<Fp>&, const Fp2T<Fp>&);
+template<class Fp> void (*Fp2DblT<Fp>::gpu_mulPre)(Fp2DblT&, const Fp2T<Fp>&, const Fp2T<Fp>&);
 template<class Fp> void (*Fp2DblT<Fp>::sqrPre)(Fp2DblT&, const Fp2T<Fp>&);
 
 template<class Fp> Fp2T<Fp> Fp2T<Fp>::g[Fp2T<Fp>::gN];

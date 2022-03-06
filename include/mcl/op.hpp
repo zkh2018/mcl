@@ -124,6 +124,7 @@ typedef void (*void2uIu)(Unit*, const Unit*, Unit, const Unit*);
 typedef void (*void2uOp)(Unit*, const Unit*, const Op&);
 typedef void (*void3u)(Unit*, const Unit*, const Unit*);
 typedef void (*void4u)(Unit*, const Unit*, const Unit*, const Unit*);
+typedef void (*void7u)(Unit*, Unit*, const Unit*, const Unit*, const Unit*, const Unit*, const Unit*);
 typedef int (*int2u)(Unit*, const Unit*);
 
 typedef Unit (*u1uII)(Unit*, Unit, Unit);
@@ -229,6 +230,7 @@ struct Op {
 	void2uIu fp_mulUnit; // fpN1_mod + fp_mulUnitPre
 
 	void3u fpDbl_mulPre;
+	void3u fpDbl_mulPre_gpu;
 	void2u fpDbl_sqrPre;
 	int2u fp_preInv;
 	void2uI fp_mulUnitPre; // z[N + 1] = x[N] * y
@@ -237,11 +239,17 @@ struct Op {
 	void4u fpDbl_add;
 	void4u fpDbl_sub;
 	void3u fpDbl_mod;
+	void3u fpDbl_mod_gpu;
+	void4u fp_mulPreW_gpu; // without modulo p
+	void3u fp_sqr_g2_gpu; // without modulo p
+	void4u fp_mul_g2_gpu; // without modulo p
 
 	u3u fp_addPre; // without modulo p
 	u3u fp_subPre; // without modulo p
+	u3u fp_subPre_gpu; // without modulo p
 	u3u fpDbl_addPre;
 	u3u fpDbl_subPre;
+	u3u fpDbl_subPre_gpu;
 	/*
 		for Fp2 = F[u] / (u^2 + 1)
 		x = a + bu
@@ -326,11 +334,17 @@ struct Op {
 		fpDbl_add = 0;
 		fpDbl_sub = 0;
 		fpDbl_mod = 0;
+		fpDbl_mod_gpu = 0;
 
 		fp_addPre = 0;
 		fp_subPre = 0;
+		fp_subPre_gpu = 0;
+		fp_mulPreW_gpu = 0;
+		fp_sqr_g2_gpu = 0;
+		fp_mul_g2_gpu = 0;
 		fpDbl_addPre = 0;
 		fpDbl_subPre = 0;
+		fpDbl_subPre_gpu = 0;
 
 		xi_a = 0;
 		fp2_mulNF = 0;

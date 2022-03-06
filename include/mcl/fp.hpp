@@ -463,8 +463,12 @@ public:
 	static void (*sub)(FpT& z, const FpT& x, const FpT& y);
 	static inline void subC(FpT& z, const FpT& x, const FpT& y) { op_.fp_sub(z.v_, x.v_, y.v_, op_.p); }
 	static inline void gpu_subC(FpT& z, const FpT& x, const FpT& y) { 
+        op_.fp_sub(z.v_, x.v_, y.v_, op_.p); 
+        //mcl::fp::GpuSub<4, false, mcl::fp::Gtag>::f(z.v_, x.v_, y.v_, op_.p);
+    }
+	static inline void gpu_subC_g2(FpT& z1, FpT& z2, const FpT& x1, const FpT& x2, const FpT& y1, const FpT& y2) { 
         //op_.fp_sub(z.v_, x.v_, y.v_, op_.p); 
-        mcl::fp::GpuSub<4, false, mcl::fp::Gtag>::f(z.v_, x.v_, y.v_, op_.p);
+        mcl::fp::GpuSubG2<4, false, mcl::fp::Gtag>::f(z1.v_, z2.v_, x1.v_, x2.v_, y1.v_, y2.v_, op_.p);
     }
 	static void (*neg)(FpT& y, const FpT& x);
 	static inline void negC(FpT& y, const FpT& x) { op_.fp_neg(y.v_, x.v_, op_.p); }
@@ -494,6 +498,7 @@ public:
 #endif
 	static inline void addPre(FpT& z, const FpT& x, const FpT& y) { op_.fp_addPre(z.v_, x.v_, y.v_); }
 	static inline void subPre(FpT& z, const FpT& x, const FpT& y) { op_.fp_subPre(z.v_, x.v_, y.v_); }
+	static inline void gpu_subPre(FpT& z, const FpT& x, const FpT& y) { op_.fp_subPre_gpu(z.v_, x.v_, y.v_); }
 	static inline void mulUnit(FpT& z, const FpT& x, const Unit y)
 	{
 		if (mulSmallUnit(z, x, y)) return;
