@@ -772,10 +772,10 @@ template<size_t N, bool isFullBit, class Tag = Gtag>
 struct GpuSub {
 	static inline void func(Unit *z, const Unit *x, const Unit *y, const Unit *p)
 	{
-		if (SubPre<N, Tag>::f(z, x, y)) {
-			AddPre<N, Tag>::f(z, z, p);
-		}
-        return;
+		//if (SubPre<N, Tag>::f(z, x, y)) {
+		//	AddPre<N, Tag>::f(z, z, p);
+		//}
+        //return;
         gpu::gpu_meta d_x, d_y, d_z, d_p;
         d_x.resize(32);
         d_y.resize(32);
@@ -821,8 +821,8 @@ struct GpuSubG2 {
         gpu::copy_cpu_to_gpu(d_p.ptr, p, 32); 
         gpu::gpu_mcl_sub_g2((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr);
         gpu::copy_gpu_to_cpu(&z[0], d_z.ptr, 64);
-        memcpy(z1, &z[N], 32);
-        memcpy(z2, &z[0], 32);
+        memcpy(z1, &z[0], 32);
+        memcpy(z2, &z[N], 32);
         d_x.release();
         d_y.release();
         d_z.release();
