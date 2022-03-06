@@ -981,6 +981,71 @@ public:
 	}
 
 	static inline void gpu_add_g2(EcT& R, const EcT& P, const EcT& Q) {
+        if(true){
+            gpu::mcl_bn128_g2 d_R, d_P, d_Q, h_R;
+            d_R.init(1);
+            h_R.init_host(1);
+            d_P.init(1);
+            d_Q.init(1);
+            gpu::Fp_model d_one, d_p;
+            gpu::Fp_model2 d_a;
+            d_one.init(1);
+            d_p.init(1);
+            d_a.init(1);
+            gpu::copy_cpu_to_gpu(d_one.mont_repr_data, P.z.a.one().getUnit(), 32);
+            gpu::copy_cpu_to_gpu(d_p.mont_repr_data, Fp::getOp().p, 32);
+            //gpu::copy_cpu_to_gpu(d_a.mont_repr_data, a_.getUnit(), 32);
+            gpu::copy_cpu_to_gpu(d_a.c0.mont_repr_data, a_.a.getUnit(), 32);
+            gpu::copy_cpu_to_gpu(d_a.c1.mont_repr_data, a_.b.getUnit(), 32);
+
+            auto copy_to_d = [](gpu::mcl_bn128_g2& dst, const EcT& src){
+                gpu::copy_cpu_to_gpu(dst.x.c0.mont_repr_data, src.x.a.getUnit(), 32);
+                gpu::copy_cpu_to_gpu(dst.x.c1.mont_repr_data, src.x.b.getUnit(), 32);
+                gpu::copy_cpu_to_gpu(dst.y.c0.mont_repr_data, src.y.a.getUnit(), 32);
+                gpu::copy_cpu_to_gpu(dst.y.c1.mont_repr_data, src.y.b.getUnit(), 32);
+                gpu::copy_cpu_to_gpu(dst.z.c0.mont_repr_data, src.z.a.getUnit(), 32);
+                gpu::copy_cpu_to_gpu(dst.z.c1.mont_repr_data, src.z.b.getUnit(), 32);
+            };
+
+            auto copy_to_h = [](EcT& dst, gpu::mcl_bn128_g2& src){
+                dst.x.a.copy((uint64_t*)src.x.c0.mont_repr_data);
+                dst.x.b.copy((uint64_t*)src.x.c1.mont_repr_data);
+                dst.y.a.copy((uint64_t*)src.y.c0.mont_repr_data);
+                dst.y.b.copy((uint64_t*)src.y.c1.mont_repr_data);
+                dst.z.a.copy((uint64_t*)src.z.c0.mont_repr_data);
+                dst.z.b.copy((uint64_t*)src.z.c1.mont_repr_data);
+            };
+            copy_to_d(d_P, P);
+            copy_to_d(d_Q, Q);
+            gpu::gpu_mcl_ect_add_g2(d_R, d_P, d_Q, d_one, d_p, d_a, specialA_, mode_, Fp::getOp().rp); 
+            d_R.copy_to_cpu(h_R);
+            copy_to_h(R, h_R);
+            //EcT R2;
+            //copy_to_h(R2, h_R);
+            //static int count = 0;
+            //if(R2.x != R.x || R2.y != R.y || R2.z != R.z){
+            //    printf("incorrect x... %d\n", count);
+            //}else { 
+            //    if(count < 10)
+            //        printf("correct... %d\n", count);
+            //}
+
+            //if(R2.y != R.y){
+            //    printf("incorrect y... %d\n", count);
+            //}
+            //if(R2.z != R.z){
+            //    printf("incorrect z... %d\n", count);
+            //}
+            //count += 1;
+            d_R.release();
+            d_Q.release();
+            d_P.release();
+            d_one.release();
+            d_p.release();
+            d_a.release();
+            return;
+        }
+
 		if (P.isZero()) { R = Q; return; }
 		if (Q.isZero()) { R = P; return; }
 		if (&P == &Q) {
@@ -997,6 +1062,7 @@ public:
 			addProj(R, P, Q, isPzOne, isQzOne);
 			break;
 		}
+
 	}
 
 	static inline void sub(EcT& R, const EcT& P, const EcT& Q)
