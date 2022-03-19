@@ -981,7 +981,13 @@ public:
 	}
 
 	static inline void gpu_add_g2(EcT& R, const EcT& P, const EcT& Q) {
-        if(true){
+    static int count = 0;
+    static bool gpu = true;
+        if(gpu){
+            //if(count >=100){
+            //    gpu = false;
+            //}
+            //count += 1;
             gpu::mcl_bn128_g2 d_R, d_P, d_Q, h_R;
             d_R.init(1);
             h_R.init_host(1);
