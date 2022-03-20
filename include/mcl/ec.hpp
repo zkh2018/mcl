@@ -982,7 +982,7 @@ public:
 
 	static inline void gpu_add_g2(EcT& R, const EcT& P, const EcT& Q) {
     static int count = 0;
-    static bool gpu = true;
+    static bool gpu = false;
         if(gpu){
             //if(count >=100){
             //    gpu = false;
@@ -1062,7 +1062,7 @@ public:
 		bool isQzOne = Q.z.isOne();
 		switch (mode_) {
 		case ec::Jacobi:
-			gpu_addJacobi_g2(R, P, Q, isPzOne, isQzOne);
+			addJacobi(R, P, Q, isPzOne, isQzOne);
 			break;
 		case ec::Proj:
 			addProj(R, P, Q, isPzOne, isQzOne);
