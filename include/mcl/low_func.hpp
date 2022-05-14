@@ -1120,64 +1120,101 @@ template<size_t N, bool isFullBit, class Tag = Gtag>
 struct GpuMont {
 	static inline void func(Unit *z, const Unit *x, const Unit *y, const Unit *p)
 	{
-        static bool first = true;
-        static Unit tp[N+1];
-        if(first){
-            for(int i = -1; i < N; i++){
-                tp[i] = p[i];
-            }
-            first = false;
-        }else{
-            for(int i = -1; i < N; i++){
-                if(tp[i] != p[i]){
-                    printf("different p...\n");
-                }
-            }
-        }
 
 		const Unit rp = p[-1];
-        if(false){
+        Unit tmpx[N], tmpy[N];
+        memcpy(tmpx, x, 32);
+        memcpy(tmpy, y, 32);
+        auto print = [](Unit* a){
+            for(int i = 0; i < 4; i++){
+                printf("%lu ", a[i]);
+            }
+            printf("\n");
+        };
+        auto f = [&](bool flag){
             Unit carry;
             (void)carry;
             Unit buf[N * 2 + 1];
             Unit buf2[N * 2 + 1];
             Unit *c = buf;
-            MulUnitPre<N, Tag>::f(c, x, y[0]); // x * y[0]
+            MulUnitPre<N, Tag>::f(c, tmpx, tmpy[0]); // x * y[0]
+            if(flag){
+                print(tmpx);
+                printf("y[0] = %lu\n", tmpy[0]);
+                print(c);
+                printf("\n");
+            }
             Unit q = c[0] * rp;
             Unit t[N + 1];
             Unit t2[N + 1];
             MulUnitPre<N, Tag>::f(t, p, q); // p * q
+            if(flag){
+                print(t);
+            }
             //carry = AddPre<N + 1, Tag>::f(c, c, t);
             carry = AddPre<N, Tag>::f(c, c, t);
+            if(flag){
+                print(c);
+            }
             c[N] += t[N] + carry;
             carry = 0;
             assert(carry == 0);
+            if(flag){
+                print(c);
+            }
             c++;
             c[N] = 0;
-            if(true){
-                for (size_t i = 1; i < 4; i++) {
-                    c[N + 1] = 0;
-                    MulUnitPre<N, Tag>::f(t, x, y[i]);
-                    carry = AddPre<N, Tag>::f(c, c, t);
-                    c[N] += t[N] + carry;
-                    carry = 0;
-                    assert(carry == 0);
-                    q = c[0] * rp;
-                    MulUnitPre<N, Tag>::f(t, p, q);
-                    carry = AddPre<N, Tag>::f(c, c, t);
-                    c[N] += t[N] + carry;
-                    carry = 0;
-                    assert(carry == 0);
-                    c++;
+            for (size_t i = 1; i < 4; i++) {
+                c[N + 1] = 0;
+                MulUnitPre<N, Tag>::f(t, tmpx, tmpy[i]);
+                if(flag){
+                    print(tmpx);
+                    printf("y[0] = %lu\n", tmpy[i]);
+                    print(t);
+                    printf("\n");
                 }
-                if(false){
-                    assert(c[N] == 0);
-                    if (SubPre<N, Tag>::f(z, c, p)) {
-                        memcpy(z, c, N * sizeof(Unit));
-                    }
+                carry = AddPre<N, Tag>::f(c, c, t);
+                if(flag){
+                    print(c);
+                    printf("c[N]=%lu %lu %lu\n", c[N], t[N], carry);
                 }
+                c[N] += t[N] + carry;
+                carry = 0;
+                assert(carry == 0);
+                q = c[0] * rp;
+                MulUnitPre<N, Tag>::f(t, p, q);
+                if(flag){
+                    print(t);
+                }
+                carry = AddPre<N, Tag>::f(c, c, t);
+                if(flag){
+                    print(c);
+                }
+                c[N] += t[N] + carry;
+                carry = 0;
+                assert(carry == 0);
+                if(flag){
+                    print(c);
+                    printf("c[N]=%lu %lu %lu\n", c[N], t[N], carry);
+                }
+                c++;
             }
-        }
+            if(flag){
+                print(c);
+            }
+            assert(c[N] == 0);
+            Unit ret = SubPre<N, Tag>::f(z, c, p);
+            if(flag){
+                print(z);
+                printf("sub_ret = %lu\n", (uint64_t)ret);
+            }
+            if(ret){
+                memcpy(z, c, N * sizeof(Unit));
+            }
+        };
+
+        f(false);
+
 
         if(true){
             gpu::gpu_meta d_x, d_y, d_z, d_p, d_buf, d_t;
@@ -1187,16 +1224,17 @@ struct GpuMont {
             d_p.resize(32+8);
             //d_buf.resize(32*2+8);
             //d_t.resize(32+8);
-            gpu::copy_cpu_to_gpu(d_x.ptr, x, 32); 
-            gpu::copy_cpu_to_gpu(d_y.ptr, y, 32); 
+            gpu::copy_cpu_to_gpu(d_x.ptr, tmpx, 32); 
+            gpu::copy_cpu_to_gpu(d_y.ptr, tmpy, 32); 
             //gpu::copy_cpu_to_gpu(d_p.ptr, &rp, 8); 
             gpu::copy_cpu_to_gpu(d_p.ptr, p, 32); 
             //gpu::gpu_set_zero(d_buf.ptr, 32*2+8);
             //gpu::gpu_set_zero(d_t.ptr, 32+8);
             //gpu::gpu_mcl_mul((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr, (uint32_t*)d_buf.ptr, (uint32_t*)d_t.ptr);
-            gpu::gpu_mcl_mul((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr, rp);
-            //Unit tz[N];
-            gpu::copy_gpu_to_cpu(z, d_z.ptr, 32);
+            gpu::gpu_mcl_mul((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr, rp, false);
+            Unit tz[N];
+            //gpu::copy_gpu_to_cpu(z, d_z.ptr, 32);
+            gpu::copy_gpu_to_cpu(tz, d_z.ptr, 32);
             //gpu::copy_gpu_to_cpu(buf2, d_buf.ptr, 32*2+8);
             //gpu::copy_gpu_to_cpu(t2, d_t.ptr, 32+8);
             //for(int i = 0; i < N+1; i++){
@@ -1211,12 +1249,24 @@ struct GpuMont {
             //        return;
             //    }
             //}
-            //for(int i = 0; i < N; i++){
-            //    if(z[i] != tz[i]){
-            //        printf("compare z failed %d...\n", i);
-            //        return;
-            //    }
-            //}
+            int cmp = memcmp(z, tz, 32);
+            if(cmp != 0){
+                printf("compare z failed..\n");
+                //for(int i = 0; i < N; i++){
+                //    printf("%lu ", z[i]);
+                //}
+                //printf("\n");
+                //for(int i = 0; i < N; i++){
+                //    printf("%lu ", tz[i]);
+                //}
+                //printf("\n");
+                f(true);
+                gpu::gpu_mcl_mul((uint32_t*)d_z.ptr, (uint32_t*)d_x.ptr, (uint32_t*)d_y.ptr, (uint32_t*)d_p.ptr, rp, true);
+                gpu::copy_gpu_to_cpu(tz, d_z.ptr, 32);
+                gpu::sync_device();
+                cmp = memcmp(z, tz, 32);
+                printf("second compare %d\n", cmp);
+            }
             d_x.release();
             d_y.release();
             d_z.release();

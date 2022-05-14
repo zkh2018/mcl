@@ -319,41 +319,43 @@ public:
 		//S += S;
         //Fp::mul(S, S, S);
         Fp::gpu_mulC(S, S, S);
-		//S += S;
-        Fp::gpu_addC(S, S, S);
-		//Fp::sqr(M, P.x);
-		Fp::gpu_sqrC(M, P.x);
+		S += S;
+        //Fp::gpu_addC(S, S, S);
+		Fp::sqr(M, P.x);
+		//Fp::gpu_sqrC(M, P.x);
 		switch (specialA_) {
 		case zero:
-			Fp::gpu_addC(t, M, M);
-			//M += t;
-            Fp::gpu_addC(M, M, t);
+            t = M + M;
+			//Fp::gpu_addC(t, M, M);
+			M += t;
+            //Fp::gpu_addC(M, M, t);
 			break;
 		case minus3:
 			if (isPzOne) {
-				//M -= P.z;
-                Fp::gpu_subC(M, M, P.z);
+				M -= P.z;
+                //Fp::gpu_subC(M, M, P.z);
 			} else {
-				//Fp::sqr(t, P.z);
-				Fp::gpu_sqrC(t, P.z);
-				//Fp::sqr(t, t);
-				Fp::gpu_sqrC(t, t);
-				//M -= t;
-                Fp::gpu_subC(M, M, t);
+				Fp::sqr(t, P.z);
+				//Fp::gpu_sqrC(t, P.z);
+				Fp::sqr(t, t);
+				//Fp::gpu_sqrC(t, t);
+				M -= t;
+                //Fp::gpu_subC(M, M, t);
 			}
-			Fp::gpu_addC(t, M, M);
-			//M += t;
-            Fp::gpu_addC(M, M, t);
+            t = M + M;
+			//Fp::gpu_addC(t, M, M);
+			M += t;
+            //Fp::gpu_addC(M, M, t);
 			break;
 		case generic:
 		default:
 			if (isPzOne) {
 				t = a_;
 			} else {
-				//Fp::sqr(t, P.z);
-				//Fp::sqr(t, t);
-				Fp::gpu_sqrC(t, P.z);
-				Fp::gpu_sqrC(t, t);
+				Fp::sqr(t, P.z);
+				Fp::sqr(t, t);
+				//Fp::gpu_sqrC(t, P.z);
+				//Fp::gpu_sqrC(t, t);
 				//t *= a_;
                 Fp::gpu_mulC(t, t, a_);
 			}
@@ -650,8 +652,8 @@ public:
 		if (isPzOne) {
 			// r = 1;
 		} else {
-			//Fp::sqr(r, P.z);
-			Fp::gpu_sqrC(r, P.z);
+			Fp::sqr(r, P.z);
+			//Fp::gpu_sqrC(r, P.z);
 		}
 		if (isQzOne) {
 			U1 = P.x;
@@ -660,12 +662,12 @@ public:
 			} else {
 				Fp::gpu_mulC(H, Q.x, r);
 			}
-			//H -= U1;
-            Fp::gpu_subC(H, H, U1);
+			H -= U1;
+            //Fp::gpu_subC(H, H, U1);
 			S1 = P.y;
 		} else {
-			//Fp::sqr(S1, Q.z);
-			Fp::gpu_sqrC(S1, Q.z);
+			Fp::sqr(S1, Q.z);
+			//Fp::gpu_sqrC(S1, Q.z);
 			//Fp::mul(U1, P.x, S1);
 			Fp::gpu_mulC(U1, P.x, S1);
 			if (isPzOne) {
@@ -674,8 +676,8 @@ public:
 				//Fp::mul(H, Q.x, r);
 				Fp::gpu_mulC(H, Q.x, r);
 			}
-			//H -= U1;
-            Fp::gpu_subC(H, H, U1);
+			H -= U1;
+            //Fp::gpu_subC(H, H, U1);
 			//S1 *= Q.z;
 			//S1 *= P.y;
             Fp::gpu_mulC(S1, S1, Q.z);
@@ -689,8 +691,8 @@ public:
             Fp::gpu_mulC(r, r, P.z);
             Fp::gpu_mulC(r, r, Q.y);
 		}
-		//r -= S1;
-        Fp::gpu_subC(r, r, S1);
+		r -= S1;
+        //Fp::gpu_subC(r, r, S1);
 		if (H.isZero()) {
 			if (r.isZero()) {
 				gpu_dblNoVerifyInf(R, P);
@@ -717,28 +719,29 @@ public:
                 Fp::gpu_mulC(R.z, R.z, H);
 			}
 		}
-		Fp::gpu_sqrC(H3, H); // H^2
+        Fp::sqr(H3, H);
+		//Fp::gpu_sqrC(H3, H); // H^2
         //mcl::fp::GpuSqrMont<4, false, mcl::fp::Gtag>::f(H3.getUnit(), H.getUnit(), Fp::getOp().p);
-		//Fp::sqr(R.y, r); // r^2
-        Fp::gpu_sqrC(R.y, r);
+		Fp::sqr(R.y, r); // r^2
+        //Fp::gpu_sqrC(R.y, r);
 		//U1 *= H3; // U1 H^2
         Fp::gpu_mulC(U1, U1, H3);
 		//H3 *= H; // H^3
         Fp::gpu_mulC(H3, H3, H);
-		//R.y -= U1;
-        Fp::gpu_subC(R.y, R.y, U1);
+		R.y -= U1;
+        //Fp::gpu_subC(R.y, R.y, U1);
 		//R.y -= U1;
 		Fp::gpu_subC(R.y, R.y, U1);
-		//Fp::sub(R.x, R.y, H3);
-		Fp::gpu_subC(R.x, R.y, H3);
-		//U1 -= R.x;
-        Fp::gpu_subC(U1, U1, R.x);
+		Fp::sub(R.x, R.y, H3);
+		//Fp::gpu_subC(R.x, R.y, H3);
+		U1 -= R.x;
+        //Fp::gpu_subC(U1, U1, R.x);
 		//U1 *= r;
         Fp::gpu_mulC(U1, U1, r);
 		//H3 *= S1;
         Fp::gpu_mulC(H3, H3, S1);
-		//Fp::sub(R.y, U1, H3);
-        Fp::gpu_subC(R.y, U1, H3);
+		Fp::sub(R.y, U1, H3);
+        //Fp::gpu_subC(R.y, U1, H3);
 	}
 	static inline void addJacobi(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)
 	{
@@ -910,7 +913,7 @@ public:
 	}
 
 	static inline void gpu_add(EcT& R, const EcT& P, const EcT& Q) {
-        if(true){
+        if(false){
             gpu::mcl_bn128_g1 d_R, d_P, d_Q, h_R;
             d_R.init(1);
             h_R.init_host(1);
