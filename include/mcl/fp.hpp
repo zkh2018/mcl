@@ -216,6 +216,10 @@ public:
 		op_.fp_copy(v_, x.v_);
 		return *this;
 	}
+     void copy(const Unit* x)
+     {
+         op_.fp_copy(v_, x);
+     }
 	void clear()
 	{
 		op_.fp_clear(v_);
