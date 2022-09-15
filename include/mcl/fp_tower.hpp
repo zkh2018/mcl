@@ -8,6 +8,7 @@
 */
 #include <mcl/fp.hpp>
 
+
 namespace mcl {
 
 template<class Fp>
@@ -230,6 +231,18 @@ public:
 	Fp* getFp0() { return &a; }
 	const Fp* getFp0() const { return &a; }
 	const Unit* getUnit() const { return a.getUnit(); }
+    void print(bool need_print=false) const {
+        if(need_print){
+            for(int i = 0; i < 4; i++){
+                printf("%lu ", a.getUnit()[i]);
+            }
+            printf("\n");
+            for(int i = 0; i < 4; i++){
+                printf("%lu ", b.getUnit()[i]);
+            }
+            printf("\n");
+        }
+    }
 	void clear()
 	{
 		a.clear();

@@ -91,6 +91,7 @@ public:
 	static Fp b_;
 	static int specialA_;
 	static int ioMode_;
+    static bool need_print;
 	/*
 		order_ is the order of G2 which is the subgroup of EcT<Fp2>.
 		check the order of the elements if verifyOrder_ is true
@@ -363,6 +364,78 @@ public:
 		R.y *= M;
 		R.y -= y2;
 	}
+	static inline void dblNoVerifyInfJacobi_debug(EcT& R, const EcT& P)
+	{
+		Fp S, M, t, y2;
+		Fp::sqr(y2, P.y);
+        printf("S = P.x*y2\n");
+        P.x.print(true);
+        y2.print(true);
+		Fp::mul(S, P.x, y2);
+		const bool isPzOne = P.z.isOne();
+        printf("isPzOne=%d\n", isPzOne);
+		S += S;
+		S += S;
+		Fp::sqr(M, P.x);
+		switch (specialA_) {
+		case zero:
+			Fp::add(t, M, M);
+			M += t;
+			break;
+		case minus3:
+			if (isPzOne) {
+				M -= P.z;
+			} else {
+				Fp::sqr(t, P.z);
+				Fp::sqr(t, t);
+				M -= t;
+			}
+			Fp::add(t, M, M);
+			M += t;
+			break;
+		case generic:
+		default:
+			if (isPzOne) {
+				t = a_;
+			} else {
+				Fp::sqr(t, P.z);
+				Fp::sqr(t, t);
+				t *= a_;
+			}
+			t += M;
+			M += M;
+			M += t;
+			break;
+		}
+		Fp::sqr(R.x, M);
+		R.x -= S;
+		R.x -= S;
+		if (isPzOne) {
+			R.z = P.y;
+		} else {
+			Fp::mul(R.z, P.y, P.z);
+		}
+		R.z += R.z;
+        printf("y2 = y2^2\n");
+        y2.print(true);
+		Fp::sqr(y2, y2);
+        y2.print(true);
+		y2 += y2;
+		y2 += y2;
+		y2 += y2;
+        printf("R.y = S-R.x\n");
+        S.print(true);
+        R.x.print(true);
+		Fp::sub(R.y, S, R.x);
+        R.y.print(true);
+        printf("R.y*m\n");
+        M.print(true);
+		R.y *= M;
+        R.y.print(true);
+        y2.print(true);
+		R.y -= y2;
+        R.y.print(true);
+	}
 	static inline void dblNoVerifyInfProj(EcT& R, const EcT& P)
 	{
 		const bool isPzOne = P.z.isOne();
@@ -453,6 +526,18 @@ public:
 		}
 #endif
 	}
+
+	static inline void dblNoVerifyInf_debug(EcT& R, const EcT& P)
+	{
+		switch (mode_) {
+		case ec::Jacobi:
+			dblNoVerifyInfJacobi_debug(R, P);
+			break;
+		case ec::Proj:
+			dblNoVerifyInfProj(R, P);
+			break;
+		}
+	}
 	static inline void dbl(EcT& R, const EcT& P)
 	{
 		if (P.isZero()) {
@@ -522,15 +607,136 @@ public:
 		}
 		Fp::sqr(H3, H); // H^2
 		Fp::sqr(R.y, r); // r^2
+
+        if(need_print){
+        printf("1:\n");
+        R.y.print(true);
+        }
+
 		U1 *= H3; // U1 H^2
 		H3 *= H; // H^3
 		R.y -= U1;
+
+        if(need_print){
+        printf("2:\n");
+        R.y.print(true);
+        }
+
 		R.y -= U1;
+
+        if(need_print){
+        printf("3:\n");
+        R.y.print(true);
+        }
+
 		Fp::sub(R.x, R.y, H3);
+
+        if(need_print){
+        printf("4:\n");
+        R.y.print(true);
+        }
+
 		U1 -= R.x;
 		U1 *= r;
 		H3 *= S1;
 		Fp::sub(R.y, U1, H3);
+
+        if(need_print){
+        printf("5:\n");
+        R.y.print(true);
+        }
+	}
+
+	static inline void addJacobi_debug(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)
+	{
+		Fp r, U1, S1, H, H3;
+		if (isPzOne) {
+			// r = 1;
+		} else {
+			Fp::sqr(r, P.z);
+		}
+		if (isQzOne) {
+			U1 = P.x;
+			if (isPzOne) {
+				H = Q.x;
+			} else {
+				Fp::mul(H, Q.x, r);
+			}
+			H -= U1;
+			S1 = P.y;
+		} else {
+			Fp::sqr(S1, Q.z);
+			Fp::mul(U1, P.x, S1);
+			if (isPzOne) {
+				H = Q.x;
+			} else {
+				Fp::mul(H, Q.x, r);
+			}
+			H -= U1;
+			S1 *= Q.z;
+			S1 *= P.y;
+		}
+		if (isPzOne) {
+			r = Q.y;
+		} else {
+			r *= P.z;
+			r *= Q.y;
+		}
+		r -= S1;
+		if (H.isZero()) {
+			if (r.isZero()) {
+                printf("r is zero\n");
+				dblNoVerifyInf_debug(R, P);
+			} else {
+				R.clear();
+			}
+            printf("H is zero\n");
+			return;
+		}
+		if (isPzOne) {
+			if (isQzOne) {
+				R.z = H;
+			} else {
+				Fp::mul(R.z, H, Q.z);
+			}
+		} else {
+			if (isQzOne) {
+				Fp::mul(R.z, P.z, H);
+			} else {
+				Fp::mul(R.z, P.z, Q.z);
+				R.z *= H;
+			}
+		}
+		Fp::sqr(H3, H); // H^2
+		Fp::sqr(R.y, r); // r^2
+
+        printf("1:\n");
+        R.y.print(true);
+
+		U1 *= H3; // U1 H^2
+		H3 *= H; // H^3
+		R.y -= U1;
+
+        printf("2:\n");
+        R.y.print(true);
+
+		R.y -= U1;
+
+        printf("3:\n");
+        R.y.print(true);
+
+		Fp::sub(R.x, R.y, H3);
+
+        printf("4:\n");
+        R.y.print(true);
+
+		U1 -= R.x;
+		U1 *= r;
+		H3 *= S1;
+		Fp::sub(R.y, U1, H3);
+
+        printf("5:\n");
+        R.y.print(true);
 	}
 	static inline void addProj(EcT& R, const EcT& P, const EcT& Q, bool isPzOne, bool isQzOne)
 	{
@@ -630,6 +836,30 @@ public:
 		}
 #endif
 	}
+
+	static inline void add_debug(EcT& R, const EcT& P, const EcT& Q) {
+		if (P.isZero()) { R = Q; return; }
+		if (Q.isZero()) { R = P; return; }
+		if (&P == &Q) {
+            printf("call dblNoVerifyInf\n");
+			dblNoVerifyInf(R, P);
+			return;
+		}
+		bool isPzOne = P.z.isOne();
+		bool isQzOne = Q.z.isOne();
+        printf("%d %d\n", isPzOne, isQzOne);
+		switch (mode_) {
+		case ec::Jacobi:
+            printf("call addJacobi\n");
+			addJacobi_debug(R, P, Q, isPzOne, isQzOne);
+			break;
+		case ec::Proj:
+            printf("call addProj\n");
+			addProj(R, P, Q, isPzOne, isQzOne);
+			break;
+		}
+	}
+
 	static inline void sub(EcT& R, const EcT& P, const EcT& Q)
 	{
 		EcT nQ;
@@ -1300,6 +1530,7 @@ public:
 
 template<class Fp> Fp EcT<Fp>::a_;
 template<class Fp> Fp EcT<Fp>::b_;
+template<class Fp> bool EcT<Fp>::need_print;
 template<class Fp> int EcT<Fp>::specialA_;
 template<class Fp> int EcT<Fp>::ioMode_;
 template<class Fp> bool EcT<Fp>::verifyOrder_;

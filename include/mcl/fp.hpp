@@ -119,6 +119,14 @@ public:
 	static inline size_t getBitSize() { return op_.bitSize; }
 	static inline size_t getByteSize() { return (op_.bitSize + 7) / 8; }
 	static inline const fp::Op& getOp() { return op_; }
+    void print(bool need_print=false) const{
+        if(need_print){
+            for(int i = 0; i < 4; i++){
+                printf("%lu ", getUnit()[i]);
+            }
+            printf("\n");
+        }
+    }
 	void dump() const
 	{
 		const size_t N = op_.N;
